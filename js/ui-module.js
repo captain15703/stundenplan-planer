@@ -467,6 +467,7 @@ function pruefeEntwurf(v) {
         if (start !== null && ende !== null) {
           const erster = ersterTerminTag(termin);
           if (start > ende) fehler.push(wo + 'Das Enddatum liegt vor dem Beginn.');
+          else if (ende - start > 366) fehler.push(wo + 'Der Zeitraum ist länger als ein Jahr – Tippfehler im Datum?');
           else if (erster > ende) fehler.push(wo + 'Im gewählten Zeitraum gibt es keinen einzigen Termin.');
         }
       }

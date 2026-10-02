@@ -94,9 +94,16 @@ function aktuelleVariante() {
 
 // Eindeutiger Schlüssel einer Variante (gewählte Optionen + Module)
 function variantenSchluessel(variante) {
-  const optionIds = variante.optionen.map((nr) => variantenErgebnis.optionen[nr].option.id).sort();
-  const modulIds = variante.module.map((m) => m.id).sort();
-  return modulIds.join(',') + '|' + optionIds.join(',');
+  return variantenSchluesselAus(
+    variante.module.map((m) => m.id),
+    variante.optionen.map((nr) => variantenErgebnis.optionen[nr].option.id),
+  );
+}
+
+// Gibt es diese Variante schon als Favorit?
+function findeFavoritZu(variante) {
+  const schluessel = variantenSchluessel(variante);
+  return daten.favoriten.find((f) => variantenSchluesselAus(f.modulIds, Object.values(f.auswahl)) === schluessel) || null;
 }
 
 // Die OptionInfos einer Variante (für Raster und Liste)
@@ -219,7 +226,7 @@ function variantenEintragHtml(variante, index) {
   return `
     <button class="varianten-eintrag${index === gewaehlteVariante ? ' aktiv' : ''}" role="listitem"
             data-aktion="variante-waehlen" data-index="${index}">
-      <span class="varianten-nr">Variante ${index + 1}</span>
+      <span class="varianten-nr">Variante ${index + 1}${findeFavoritZu(variante) ? ' <span class="stern" title="Favorit">★</span>' : ''}</span>
       <span class="farbpunkte">${variante.module.map((m) => `<span class="farbpunkt" style="background:${escapeHtml(m.farbe)}" title="${escapeHtml(m.name)}"></span>`).join('')}</span>
       <span class="klein gedimmt">${kennzahlenKurz(variante)}</span>
     </button>`;
@@ -246,12 +253,18 @@ function variantenDetailHtml() {
   const wochen = wochenAuswahl(infos);
   if (!wochen.some(([wert]) => wert === String(gewaehlteWoche))) gewaehlteWoche = 'regel';
 
+  const favorit = findeFavoritZu(variante);
   return `
     ${mobilAuswahl}
     <div class="karte">
       <div class="detail-kopf">
-        <h3>Variante ${gewaehlteVariante + 1}</h3>
-        <div class="knopf-reihe" id="varianten-aktionen"></div>
+        <h3>Variante ${gewaehlteVariante + 1}${favorit ? ' <span class="stern" title="Favorit">★</span>' : ''}</h3>
+        <div class="knopf-reihe">
+          ${favorit
+            ? `<button class="knopf" data-aktion="tab-favoriten">★ Favorit „${escapeHtml(favorit.name)}“</button>`
+            : '<button class="knopf" data-aktion="favorit-speichern">☆ Als Favorit speichern</button>'}
+          <button class="knopf" data-aktion="variante-ics">📅 Kalender-Export (.ics)</button>
+        </div>
       </div>
       ${kennzahlenHtml(variante.ects, ziel, k)}
       <label class="feld wochen-wahl">Ansicht
@@ -317,4 +330,47 @@ aktionen['variante-blaettern'] = (werte) => {
 aktionen['woche-waehlen'] = (werte, element) => {
   gewaehlteWoche = element.value;
   zeichneVariantenTab();
+};
+
+/* ---------- Favorit speichern & Kalender-Export ---------- */
+
+aktionen['favorit-speichern'] = () => {
+  const variante = aktuelleVariante();
+  const vorschlag = `Variante ${gewaehlteVariante + 1} (${formatZahl(variante.ects)} ECTS, Ø ${formatZahl(variante.kennzahlen.tageProWoche)} Tage)`;
+  zeigeDialog({
+    titel: 'Als Favorit speichern',
+    speichernText: 'Speichern',
+    inhalt: `
+      <label class="feld">Name
+        <input name="name" value="${escapeHtml(vorschlag)}" maxlength="80">
+      </label>
+      <p class="hilfe">Favoriten findest du im Tab „Favoriten“ – dort kannst du sie nebeneinander vergleichen.</p>`,
+    beimSpeichern(formular) {
+      const name = formularWerte(formular).name.trim() || vorschlag;
+      const auswahl = {};
+      for (const info of optionInfosVon(variante)) auswahl[info.veranstaltung.id] = info.option.id;
+      daten.favoriten.push({
+        id: neueId('fav'),
+        name,
+        gespeichertAm: new Date().toISOString(),
+        modulIds: variante.module.map((m) => m.id),
+        auswahl,
+      });
+      // Neu gespeicherter Favorit ist im Vergleich gleich ausgewählt (wenn noch Platz ist)
+      if (vergleichAuswahl.size < MAX_VERGLEICH) vergleichAuswahl.add(daten.favoriten[daten.favoriten.length - 1].id);
+      datenSpeichern(); // Varianten bleiben gleich → nicht neu berechnen
+      zeichneVariantenTab();
+      zeigeMeldung('Als Favorit gespeichert');
+      return [];
+    },
+  });
+};
+
+aktionen['tab-favoriten'] = () => zeigeTab('favoriten');
+
+aktionen['variante-ics'] = () => {
+  const variante = aktuelleVariante();
+  const name = (daten.einstellungen.semesterName || 'Stundenplan') + ' – Variante ' + (gewaehlteVariante + 1);
+  exportiereIcs(optionInfosVon(variante), name);
+  zeigeMeldung('Kalenderdatei erstellt');
 };

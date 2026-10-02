@@ -466,6 +466,27 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
 .belegung-modul .farbpunkt, .blockliste .farbpunkt { margin-top: 5px; }
 .belegung-modul ul { margin: 2px 0 0; padding-left: 18px; color: var(--text-gedimmt); }
 
+.stern { color: #e0a100; }
+.abstand-oben { margin-top: 10px; }
+
+/* ---------- Favoriten & Vergleich ---------- */
+.favoriten-liste { display: grid; gap: 12px; margin-bottom: 14px; }
+.favoriten-liste .karte { margin-bottom: 0; }
+.favorit-karte.gewaehlt { border-color: var(--akzent); box-shadow: 0 0 0 1px var(--akzent) inset; }
+.favorit-karte .farbpunkte { margin: 6px 0 2px; }
+.favorit-karte .klein { margin: 4px 0; }
+.favorit-karte .hinweis { margin: 8px 0 0; }
+
+.tabelle-scroll { overflow-x: auto; margin-bottom: 12px; }
+.vergleich-tabelle { border-collapse: collapse; width: 100%; font-size: .92rem; }
+.vergleich-tabelle th, .vergleich-tabelle td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--linie); vertical-align: top; }
+.vergleich-tabelle thead th { font-size: .88rem; }
+.vergleich-tabelle tbody th { font-weight: 500; color: var(--text-gedimmt); white-space: nowrap; }
+.vergleich-tabelle td.bester { color: var(--erfolg); font-weight: 700; }
+
+.vergleich-raster { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.vergleich-raster > div { min-width: 0; }
+
 /* ---------- Wochenraster ---------- */
 .raster-scroll { overflow-x: auto; margin: 0 -14px; padding: 0 14px 4px; }
 .raster {
@@ -552,6 +573,8 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
   .varianten-layout { grid-template-columns: 270px minmax(0, 1fr); align-items: start; }
   .varianten-liste { display: block; position: sticky; top: 70px; max-height: calc(100vh - 90px); overflow-y: auto; padding-right: 2px; }
   .mobil-auswahl { display: none; }
+  .favoriten-liste { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .vergleich-raster { grid-template-columns: repeat(var(--spalten), minmax(0, 1fr)); }
 }
 
 /* Auf dem Handy: Dialog als Vollbild */

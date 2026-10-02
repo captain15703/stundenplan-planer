@@ -144,6 +144,13 @@ function formatDatum(datum, { mitWochentag = false, mitJahr = true } = {}) {
   return text;
 }
 
+// Zeitpunkt (z. B. "2026-10-02T13:45:00.000Z") als lokales Datum "02.10.2026"
+function formatZeitpunkt(zeitpunkt) {
+  const datum = new Date(zeitpunkt);
+  if (Number.isNaN(datum.getTime())) return '';
+  return datum.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 // Heutiges Datum als "JJJJ-MM-TT" (in der Ortszeit des Geräts)
 function heuteAlsDatum() {
   const jetzt = new Date();
@@ -163,6 +170,21 @@ function zeitZuMinuten(zeit) {
 
 function minutenZuZeit(minuten) {
   return zweistellig(Math.floor(minuten / 60)) + ':' + zweistellig(minuten % 60);
+}
+
+/* ---------- Datei herunterladen ---------- */
+
+// Bietet einen Text als Datei zum Herunterladen an
+function ladeDateiHerunter(dateiname, inhalt, mimeTyp) {
+  const datei = new Blob([inhalt], { type: mimeTyp });
+  const adresse = URL.createObjectURL(datei);
+  const link = document.createElement('a');
+  link.href = adresse;
+  link.download = dateiname;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(adresse), 1000);
 }
 
 /* ---------- Kurzmeldung unten am Bildschirm ---------- */

@@ -52,9 +52,14 @@ function zeigeEinstellungen() {
     </section>
 
     <section class="karte">
-      <h3>Daten</h3>
-      <p class="hilfe">Alle Daten liegen nur in diesem Browser auf diesem Gerät.</p>
+      <h3>Daten &amp; Backup</h3>
+      <p class="hilfe">Alle Daten liegen nur in diesem Browser auf diesem Gerät. Mit einem Backup (JSON-Datei)
+        kannst du sie sichern oder auf ein anderes Gerät übertragen.</p>
       <div class="knopf-reihe">
+        <button class="knopf" data-aktion="backup-export">⬇ Backup exportieren</button>
+        <button class="knopf" data-aktion="backup-import">⬆ Backup importieren</button>
+      </div>
+      <div class="knopf-reihe abstand-oben">
         <button class="knopf" data-aktion="beispieldaten-laden">Beispieldaten laden</button>
         <button class="knopf gefahr" data-aktion="alles-loeschen">Alle Daten löschen</button>
       </div>

@@ -386,6 +386,164 @@ test('Leistung: extrem viele Alternativen enden nach dem Zeitbudget', () => {
   wahr(erg.varianten.length === 20, '20 Varianten erwartet');
 });
 
+/* ---------- Zeitzone & Kalender-Export ---------- */
+
+test('Letzter Sonntag im März/Oktober', () => {
+  gleich(tagNrZuDatum(letzterSonntag(2026, 3)), '2026-03-29');
+  gleich(tagNrZuDatum(letzterSonntag(2026, 10)), '2026-10-25');
+  gleich(tagNrZuDatum(letzterSonntag(2027, 3)), '2027-03-28');
+  gleich(tagNrZuDatum(letzterSonntag(2027, 10)), '2027-10-31');
+});
+
+test('Berlin → UTC an den Umstellungstagen', () => {
+  const utc = (datum, zeit) => new Date(berlinNachUtc(datumZuTagNr(datum), zeitZuMinuten(zeit))).toISOString().slice(0, 16);
+  gleich(utc('2026-10-24', '10:00'), '2026-10-24T08:00', 'Sommerzeit:');
+  gleich(utc('2026-10-25', '01:30'), '2026-10-24T23:30', 'Umstellungstag vor 2 Uhr:');
+  gleich(utc('2026-10-25', '10:00'), '2026-10-25T09:00', 'Umstellungstag nachmittags:');
+  gleich(utc('2026-10-26', '10:00'), '2026-10-26T09:00', 'Winterzeit:');
+  gleich(utc('2027-03-28', '01:00'), '2027-03-28T00:00', 'vor Beginn Sommerzeit:');
+  gleich(utc('2027-03-28', '10:00'), '2027-03-28T08:00', 'nach Beginn Sommerzeit:');
+});
+
+test('Berlin → UTC stimmt mit der Zeitzonen-Datenbank des Browsers überein', () => {
+  const format = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  });
+  const start = datumZuTagNr('2026-01-01');
+  for (let tag = start; tag < start + 800; tag += 3) {
+    for (const minuten of [8 * 60, 13 * 60 + 15, 19 * 60 + 45]) {
+      const teile = Object.fromEntries(format.formatToParts(new Date(berlinNachUtc(tag, minuten))).map((t) => [t.type, t.value]));
+      gleich(teile.year + '-' + teile.month + '-' + teile.day + ' ' + teile.hour + ':' + teile.minute,
+        tagNrZuDatum(tag) + ' ' + minutenZuZeit(minuten), 'Ortszeit:');
+    }
+  }
+});
+
+test('ICS: Text maskieren und lange Zeilen falten', () => {
+  gleich(icsText('A,B;C\\D\nE'), 'A\\,B\\;C\\\\D\\nE');
+  const lang = 'SUMMARY:' + 'Übung für Fortgeschrittene – Größenordnungen; '.repeat(4);
+  const gefaltet = icsFalten(lang);
+  const zeilen = gefaltet.split('\r\n');
+  wahr(zeilen.length > 1, 'sollte gefaltet sein');
+  zeilen.forEach((z, i) => {
+    wahr(new TextEncoder().encode(z).length <= 75, 'Zeile ' + i + ' länger als 75 Bytes');
+    if (i > 0) wahr(z.startsWith(' '), 'Folgezeile ohne Leerzeichen');
+  });
+  gleich(gefaltet.replace(/\r\n /g, ''), lang, 'zusammengesetzt:');
+});
+
+// Mini-Leser für die exportierte Datei: liefert je VEVENT alle Termine als "JJJJ-MM-TT HH:MM"
+function expandiereIcs(text) {
+  const entfaltet = text.replace(/\r\n /g, '');
+  const ereignisse = entfaltet.split('BEGIN:VEVENT').slice(1).map((block) => block.split('END:VEVENT')[0]);
+  return ereignisse.map((block) => {
+    const feld = (name) => (block.split('\r\n').find((z) => z.startsWith(name)) || '').split(':').slice(1).join(':');
+    const lokal = (wert) => ({ tag: datumZuTagNr(wert.slice(0, 4) + '-' + wert.slice(4, 6) + '-' + wert.slice(6, 8)), minuten: Number(wert.slice(9, 11)) * 60 + Number(wert.slice(11, 13)) });
+    const start = lokal(feld('DTSTART'));
+    const termine = [];
+    const regel = feld('RRULE');
+    if (!regel) {
+      termine.push(start.tag);
+    } else {
+      const intervall = /INTERVAL=(\d+)/.test(regel) ? Number(regel.match(/INTERVAL=(\d+)/)[1]) : 1;
+      const bis = regel.match(/UNTIL=(\d{8}T\d{6}Z)/)[1];
+      const bisMs = Date.UTC(+bis.slice(0, 4), +bis.slice(4, 6) - 1, +bis.slice(6, 8), +bis.slice(9, 11), +bis.slice(11, 13));
+      const ausnahmen = new Set(feld('EXDATE').split(',').filter(Boolean).map((w) => lokal(w).tag));
+      for (let tag = start.tag; berlinNachUtc(tag, start.minuten) <= bisMs; tag += 7 * intervall) {
+        if (!ausnahmen.has(tag)) termine.push(tag);
+      }
+    }
+    return { titel: feld('SUMMARY'), termine: termine.map((t) => tagNrZuDatum(t) + ' ' + minutenZuZeit(start.minuten)) };
+  });
+}
+
+test('ICS: Serien, 14-tägig, Ferien-Ausnahmen und Blocktermine', () => {
+  setzeDaten({
+    module: [M('Test, Modul; 1', 5, true, [
+      V('Seminar', [O('', [T(3, '12:00', '14:00')])]),
+      V('Übung', [O('Gruppe B', [T(5, '10:00', '11:30', { rhythmus: 'zweiwoechentlich', startwoche: 2, raum: 'R 1' })])]),
+      V('Vorlesung', [O('', [T(6, '09:00', '16:00', { rhythmus: 'block', daten: ['2026-11-14', '2026-12-26'] })])]),
+    ])],
+    vorlesungsfrei: [{ name: 'Dies', von: '2026-11-18', bis: '2026-11-18' }, { name: 'Weihnachten', von: '2026-12-21', bis: '2027-01-06' }],
+  });
+  const freie = vorlesungsfreieTage();
+  const modul = daten.module[0];
+  const infos = modul.veranstaltungen.map((v) => erstelleOptionInfo(modul, v, v.optionen[0], freie));
+  const ics = erzeugeIcs(infos, 'Test');
+
+  wahr(ics.includes('\r\n') && !/[^\r]\n/.test(ics), 'Zeilenenden müssen CRLF sein');
+  gleich((ics.match(/BEGIN:VEVENT/g) || []).length, (ics.match(/END:VEVENT/g) || []).length, 'BEGIN/END:');
+  wahr(ics.includes('BEGIN:VTIMEZONE') && ics.includes('TZID:Europe/Berlin'), 'Zeitzone fehlt');
+  wahr(ics.includes('DTSTART;TZID=Europe/Berlin:20261014T120000'), 'DTSTART Seminar');
+  wahr(ics.includes('SUMMARY:Test\\, Modul\\; 1 – Seminar'), 'Titel maskiert');
+  wahr(/RRULE:FREQ=WEEKLY;INTERVAL=2;UNTIL=\d{8}T\d{6}Z/.test(ics), '14-tägige Regel');
+  wahr(ics.includes('20261118T120000'), 'Dies academicus als Ausnahme');
+
+  const ereignisse = expandiereIcs(ics);
+  gleich(ereignisse.length, 4, 'Anzahl VEVENTs (2 Serien + 2 Blocktermine):');
+  // Jede Serie muss exakt die berechneten Vorkommen ergeben
+  for (const info of infos) {
+    for (const termin of info.option.termine) {
+      const soll = info.vorkommen.filter((v) => v.termin === termin).map((v) => tagNrZuDatum(v.tag) + ' ' + minutenZuZeit(v.start));
+      const ist = ereignisse.filter((e) => e.titel.includes(veranstaltungName(info.veranstaltung))).flatMap((e) => e.termine).sort();
+      gleich(ist, soll, veranstaltungName(info.veranstaltung) + ':');
+    }
+  }
+  // Blocktermin am 26.12. bleibt trotz Weihnachtspause
+  wahr(ereignisse.some((e) => e.termine.includes('2026-12-26 09:00')), 'Blocktermin 26.12. fehlt');
+});
+
+test('ICS: Beispieldaten-Variante ergibt exakt die berechneten Termine', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  const erg = berechneVarianten();
+  const infos = erg.varianten[0].optionen.map((n) => erg.optionen[n]);
+  const ist = expandiereIcs(erzeugeIcs(infos, 'Beispiel')).flatMap((e) => e.termine).sort();
+  const soll = infos.flatMap((info) => info.vorkommen.map((v) => tagNrZuDatum(v.tag) + ' ' + minutenZuZeit(v.start))).sort();
+  gleich(ist, soll);
+});
+
+/* ---------- Favoriten & Backup ---------- */
+
+test('Favorit wird mit aktuellen Daten nachgebaut und erkennt Änderungen', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  const erg = berechneVarianten();
+  const variante = erg.varianten[0];
+  const auswahl = {};
+  variante.optionen.forEach((n) => { auswahl[erg.optionen[n].veranstaltung.id] = erg.optionen[n].option.id; });
+  const modulIds = variante.module.map((m) => m.id);
+
+  const nachgebaut = varianteAusAuswahl(modulIds, auswahl);
+  gleich(nachgebaut.probleme, [], 'Probleme:');
+  gleich(nachgebaut.ects, variante.ects, 'ECTS:');
+  gleich(nachgebaut.kennzahlen, variante.kennzahlen, 'Kennzahlen:');
+
+  // Termin verschieben → Überschneidung erkennen
+  const erste = findeOption(Object.values(auswahl)[0]).option.termine[0];
+  const zweite = findeOption(Object.values(auswahl)[1]).option.termine[0];
+  Object.assign(zweite, { rhythmus: erste.rhythmus, wochentag: erste.wochentag, von: erste.von, bis: erste.bis, start: '', ende: '' });
+  wahr(varianteAusAuswahl(modulIds, auswahl).probleme.some((p) => p.startsWith('Überschneidung')), 'Überschneidung erwartet');
+
+  // Modul löschen → veraltet
+  daten.module = daten.module.filter((m) => m.id !== modulIds[0]);
+  wahr(varianteAusAuswahl(modulIds, auswahl).probleme.some((p) => p.includes('gelöscht')), 'Hinweis „gelöscht“ erwartet');
+});
+
+test('Backup: Export und Import ergeben dieselben Daten', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  daten.favoriten.push({ id: 'fav-1', name: 'Test', gespeichertAm: '2026-10-02T10:00:00.000Z', modulIds: ['x'], auswahl: { a: 'b' } });
+  const text = JSON.stringify({ app: BACKUP_KENNUNG, version: DATEN_VERSION, exportiertAm: '2026-10-02T10:00:00.000Z', daten });
+  const ergebnis = pruefeBackup(text);
+  gleich(ergebnis.fehler, undefined, 'Fehler:');
+  gleich(ergebnis.daten, daten, 'Daten:');
+  gleich(ergebnis.datum, '02.10.2026');
+});
+
+test('Backup: ungültige Dateien werden abgelehnt', () => {
+  wahr(pruefeBackup('kein json').fehler, 'kaputtes JSON');
+  wahr(pruefeBackup(JSON.stringify({ module: [] })).fehler, 'fremde Datei');
+  wahr(pruefeBackup(JSON.stringify({ app: BACKUP_KENNUNG, version: DATEN_VERSION + 1, daten: {} })).fehler, 'neuere Version');
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {

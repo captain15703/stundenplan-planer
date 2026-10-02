@@ -231,7 +231,15 @@ function normalisiereDaten(roh) {
       pufferNach: leseZahl(g.pufferNach, 0),
     })),
     vorlesungsfrei: liste(quelle.vorlesungsfrei).map((f) => ({ ...neueVorlesungsfreieZeit(), ...f })),
-    favoriten: liste(quelle.favoriten).filter((f) => f && f.auswahl),
+    favoriten: liste(quelle.favoriten)
+      .filter((f) => f.auswahl && typeof f.auswahl === 'object')
+      .map((f) => ({
+        id: f.id || neueId('fav'),
+        name: String(f.name || 'Favorit'),
+        gespeichertAm: String(f.gespeichertAm || new Date().toISOString()),
+        modulIds: Array.isArray(f.modulIds) ? f.modulIds.map(String) : [],
+        auswahl: { ...f.auswahl },
+      })),
   };
 }
 

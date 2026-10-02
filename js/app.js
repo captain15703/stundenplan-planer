@@ -40,12 +40,6 @@ function zeigeTab(name) {
   TABS[name]();
 }
 
-/* ---------- Platzhalter für spätere Etappen ---------- */
-
-function zeigeFavoritenTab() {
-  $('#tab-favoriten').innerHTML = '<div class="leer-zustand"><p>Favoriten folgen in Etappe 3.</p></div>';
-}
-
 /* ---------- Zentrale Ereignisverarbeitung ----------
    Statt jedem Knopf einzeln eine Funktion zuzuweisen, hören wir an
    EINER Stelle auf alle Klicks. Hat das angeklickte Element (oder ein

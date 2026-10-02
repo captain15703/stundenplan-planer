@@ -423,6 +423,77 @@ function berechneVarianten() {
   return ergebnis;
 }
 
+/* ---------- Gespeicherte Varianten (Favoriten) ---------- */
+
+// Eindeutiger Text-Schlüssel einer Variante aus Modul- und Options-IDs
+function variantenSchluesselAus(modulIds, optionIds) {
+  return [...modulIds].sort().join(',') + '|' + [...optionIds].sort().join(',');
+}
+
+// Baut eine gespeicherte Auswahl mit den AKTUELLEN Daten nach.
+// auswahl = { veranstaltungId: optionId }. Wurde inzwischen etwas
+// gelöscht oder entsteht jetzt eine Überschneidung, steht das in "probleme".
+function varianteAusAuswahl(modulIds, auswahl) {
+  const freieTage = vorlesungsfreieTage();
+  const probleme = [];
+
+  const module = [];
+  for (const id of modulIds) {
+    const modul = findeModul(id);
+    if (modul) module.push(modul);
+    else probleme.push('Ein Modul dieser Variante wurde gelöscht.');
+  }
+
+  const infos = [];
+  for (const [veranstaltungId, optionId] of Object.entries(auswahl)) {
+    const gefunden = findeOption(optionId);
+    if (!gefunden || gefunden.veranstaltung.id !== veranstaltungId) {
+      probleme.push('Eine gewählte Lehrveranstaltung oder Gruppe wurde gelöscht.');
+      continue;
+    }
+    if (!module.includes(gefunden.modul)) continue;
+    infos.push(erstelleOptionInfo(gefunden.modul, gefunden.veranstaltung, gefunden.option, freieTage));
+  }
+
+  // Neue Lehrveranstaltungen in den Modulen, für die noch keine Gruppe gewählt ist
+  for (const modul of module) {
+    for (const veranstaltung of modul.veranstaltungen) {
+      if (veranstaltung.aktiv && !(veranstaltung.id in auswahl)) {
+        probleme.push(`„${veranstaltungName(veranstaltung)}“ in „${modul.name}“ ist in dieser Variante nicht eingeplant (neu oder wieder aktiviert).`);
+      }
+    }
+  }
+
+  // Überschneidungen untereinander und mit geblockten Zeiten (Daten könnten sich geändert haben)
+  for (let i = 0; i < infos.length; i++) {
+    for (let j = i + 1; j < infos.length; j++) {
+      if (ersteUeberschneidung(infos[i].vorkommen, infos[j].vorkommen)) {
+        probleme.push('Überschneidung: ' + optionBezeichnung(infos[i]) + ' und ' + optionBezeichnung(infos[j]) + '.');
+      }
+    }
+  }
+  const alleTage = infos.flatMap((info) => info.vorkommen.map((v) => v.tag));
+  if (alleTage.length) {
+    const vonTag = Math.min(...alleTage);
+    const bisTag = Math.max(...alleTage);
+    const geblockt = daten.geblockteZeiten.filter((b) => b.aktiv)
+      .flatMap((block) => vorkommenVonGeblockterZeit(block, vonTag, bisTag))
+      .sort((a, b) => a.tag - b.tag || a.start - b.start);
+    for (const info of infos) {
+      const kollision = ersteUeberschneidung(info.vorkommen, geblockt);
+      if (kollision) probleme.push(optionBezeichnung(info) + ' kollidiert mit „' + kollision.b.block.name + '“.');
+    }
+  }
+
+  return {
+    module,
+    infos,
+    ects: module.reduce((summe, m) => summe + m.ects, 0),
+    kennzahlen: berechneKennzahlen(infos),
+    probleme: [...new Set(probleme)], // doppelte Meldungen entfernen
+  };
+}
+
 // Hilft bei der Fehlersuche, wenn gar keine Variante gefunden wurde
 function erklaereKeineVariante(ergebnis, pflicht, konflikte, nurZiel, ziel) {
   const { optionen, diagnose } = ergebnis;
