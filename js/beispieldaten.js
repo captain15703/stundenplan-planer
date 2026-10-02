@@ -84,7 +84,7 @@ function beispieldatenErzeugen() {
       ]),
 
       modul({
-        name: 'Interkulturelle Kompetenz', nummer: 'W-13', ects: 4, pflicht: false, farbe: '#b07aa1',
+        name: 'Interkulturelle Kompetenz', nummer: 'W-13', ects: 5, pflicht: false, farbe: '#b07aa1',
         dozent: 'Elif Beispiel', pruefungsform: 'Referat',
         notizen: 'Gruppe Mo kollidiert mit dem Nebenjob (inkl. Puffer) und wird deshalb nie gewählt.',
       }, [
@@ -111,12 +111,23 @@ function beispieldatenErzeugen() {
       ]),
 
       modul({
-        name: 'Ethik in der Praxis', nummer: 'W-15', ects: 3, pflicht: false, farbe: '#edc948',
+        name: 'Ethik in der Praxis', nummer: 'W-15', ects: 4, pflicht: false, farbe: '#edc948',
         dozent: 'Dr. Greta Muster', pruefungsform: 'Portfolio',
       }, [
         veranstaltung('Seminar', '', [
           option('Gruppe 1', [termin(1, '08:00', '10:00', 'R 2.11')]),
           option('Gruppe 2', [termin(5, '12:00', '14:00', 'R 2.11')]),
+        ]),
+      ]),
+
+      modul({
+        name: 'Digitale Kommunikation', nummer: 'W-16', ects: 5, pflicht: false, farbe: '#9c755f',
+        dozent: 'Hanna Probe', pruefungsform: 'Projektbericht',
+        link: 'https://example.org/lernplattform/w-16',
+      }, [
+        veranstaltung('Seminar', '', [
+          option('Gruppe Di', [termin(2, '16:00', '18:00', 'Medienlabor')]),
+          option('Gruppe Do', [termin(4, '16:00', '18:00', 'Medienlabor')]),
         ]),
       ]),
     ],

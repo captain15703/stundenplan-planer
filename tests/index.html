@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tests – Stundenplan-Planer</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; line-height: 1.4; }
+    .ok { color: #23824a; }
+    .fehler { color: #c62f2f; font-weight: 600; }
+    li { margin: 2px 0; }
+    pre { white-space: pre-wrap; margin: 2px 0 6px 20px; color: #c62f2f; }
+  </style>
+</head>
+<body>
+  <h1>Tests</h1>
+  <p>Prüft die Rechenlogik (Termine, Überschneidungen, Varianten, Kalender-Export) ohne Oberfläche.
+     Diese Seite einfach im Browser öffnen.</p>
+  <p id="zusammenfassung">Tests laufen …</p>
+  <ul id="ergebnisse"></ul>
+
+  <!-- Dieselben Dateien wie die App, aber ohne Oberfläche -->
+  <script src="../js/hilfen.js"></script>
+  <script src="../js/speicher.js"></script>
+  <script src="../js/termine.js"></script>
+  <script src="../js/varianten.js"></script>
+  <script src="../js/beispieldaten.js"></script>
+  <script src="tests.js"></script>
+</body>
+</html>

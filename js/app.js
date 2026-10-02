@@ -21,6 +21,7 @@ let aktiverTab = 'module';
 // (z. B. damit beim Tippen der Fokus nicht verloren geht).
 function datenGeaendert(neuZeichnen = true) {
   datenSpeichern();
+  variantenVeraltet = true; // Varianten beim nächsten Anzeigen neu berechnen
   if (neuZeichnen) zeigeTab(aktiverTab);
 }
 
@@ -40,10 +41,6 @@ function zeigeTab(name) {
 }
 
 /* ---------- Platzhalter für spätere Etappen ---------- */
-
-function zeigeVariantenTab() {
-  $('#tab-varianten').innerHTML = '<div class="leer-zustand"><p>Die Berechnung der Varianten folgt in Etappe 2.</p></div>';
-}
 
 function zeigeFavoritenTab() {
   $('#tab-favoriten').innerHTML = '<div class="leer-zustand"><p>Favoriten folgen in Etappe 3.</p></div>';
