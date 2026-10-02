@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stundenplan-Planer</title>
+  <meta name="description" content="Stundenplan-Varianten ohne Überschneidungen planen, vergleichen und als Kalender exportieren.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%85%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="seitenkopf">
+    <h1>Stundenplan-Planer</h1>
+    <nav class="tabs" role="tablist" aria-label="Bereiche">
+      <button class="tab" role="tab" data-tab="module">Module</button>
+      <button class="tab" role="tab" data-tab="zeiten">Geblockte Zeiten</button>
+      <button class="tab" role="tab" data-tab="varianten">Varianten</button>
+      <button class="tab" role="tab" data-tab="favoriten">Favoriten</button>
+      <button class="tab" role="tab" data-tab="einstellungen">Einstellungen</button>
+    </nav>
+  </header>
+
+  <div id="hinweis-speicher" class="banner" hidden>
+    Achtung: Dein Browser erlaubt kein Speichern (z. B. im privaten Modus).
+    Änderungen gehen beim Schließen verloren – bitte ein Backup exportieren.
+  </div>
+
+  <!-- Jeder Tab hat einen eigenen Bereich; der Inhalt wird per JavaScript erzeugt -->
+  <main>
+    <section id="tab-module" class="tab-inhalt" hidden></section>
+    <section id="tab-zeiten" class="tab-inhalt" hidden></section>
+    <section id="tab-varianten" class="tab-inhalt" hidden></section>
+    <section id="tab-favoriten" class="tab-inhalt" hidden></section>
+    <section id="tab-einstellungen" class="tab-inhalt" hidden></section>
+  </main>
+
+  <noscript><p class="banner">Bitte JavaScript aktivieren – ohne funktioniert der Planer nicht.</p></noscript>
+
+  <!-- Gemeinsames Dialogfenster für alle Eingabeformulare -->
+  <dialog id="dialog" aria-label="Eingabe"></dialog>
+
+  <!-- Kurzmeldungen ("Gespeichert" usw.) -->
+  <div id="meldung" class="meldung" role="status" aria-live="polite"></div>
+
+  <!-- Reihenfolge wichtig: Hilfsfunktionen zuerst, app.js zuletzt -->
+  <script src="js/hilfen.js"></script>
+  <script src="js/speicher.js"></script>
+  <script src="js/termine.js"></script>
+  <script src="js/varianten.js"></script>
+  <script src="js/wochenansicht.js"></script>
+  <script src="js/ics.js"></script>
+  <script src="js/backup.js"></script>
+  <script src="js/beispieldaten.js"></script>
+  <script src="js/ui-module.js"></script>
+  <script src="js/ui-zeiten.js"></script>
+  <script src="js/ui-varianten.js"></script>
+  <script src="js/ui-favoriten.js"></script>
+  <script src="js/ui-einstellungen.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
