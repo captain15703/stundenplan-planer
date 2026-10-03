@@ -138,9 +138,9 @@ function beschreibeTermin(termin) {
       teile.push('wöchentlich');
     }
     if (termin.start || termin.ende) {
+      // Mit Jahreszahl – sonst wirkt z. B. "12.10.–07.02." so, als läge das Ende vor dem Beginn
       const { start, ende } = zeitraumVon(termin);
-      teile.push((start !== null ? formatDatum(start, { mitJahr: false }) : '…') + '–' +
-        (ende !== null ? formatDatum(ende, { mitJahr: false }) : '…'));
+      teile.push((start !== null ? formatDatum(start) : '…') + '–' + (ende !== null ? formatDatum(ende) : '…'));
     }
   }
   if (termin.raum) teile.push(termin.raum);

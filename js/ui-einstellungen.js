@@ -64,6 +64,24 @@ function zeigeEinstellungen() {
         <button class="knopf gefahr" data-aktion="alles-loeschen">Alle Daten löschen</button>
       </div>
     </section>`;
+
+  // Vorlesungsende erst beim VERLASSEN eines Datumsfelds prüfen – während des
+  // Tippens meldet der Browser Zwischenstände wie das Jahr "0002".
+  $$('input[data-feld="semesterStart"], input[data-feld="semesterEnde"]', bereich).forEach((feld) => {
+    feld.addEventListener('blur', pruefeVorlesungszeitraum);
+  });
+}
+
+// Liegt das Vorlesungsende vor dem Beginn, wird es ins nächste Jahr gelegt
+function pruefeVorlesungszeitraum() {
+  const e = daten.einstellungen;
+  const korrigiert = korrigiereEnddatum(e.semesterStart, e.semesterEnde);
+  if (korrigiert === e.semesterEnde) return;
+  e.semesterEnde = korrigiert;
+  datenGeaendert(false);
+  const feld = $('#tab-einstellungen input[data-feld="semesterEnde"]');
+  if (feld) feld.value = korrigiert;
+  zeigeMeldung('Vorlesungsende auf ' + formatDatum(korrigiert) + ' korrigiert (lag vor dem Beginn)');
 }
 
 function beschreibeVorlesungsfrei(frei) {
@@ -113,13 +131,16 @@ function oeffneFreiDialog(id) {
       const fehler = [];
       if (!w.name.trim()) fehler.push('Bitte eine Bezeichnung eingeben.');
       if (!w.von) fehler.push('Bitte das Anfangsdatum angeben.');
-      if (w.von && w.bis && w.bis < w.von) fehler.push('Das Bis-Datum liegt vor dem Von-Datum.');
+      // Bis-Datum vor dem Von-Datum (z. B. 21.12.2026–06.01.2026) → ins nächste Jahr legen
+      const bis = korrigiereEnddatum(w.von, w.bis);
+      if (w.von && bis && bis < w.von) fehler.push('Das Bis-Datum liegt vor dem Von-Datum.');
       if (fehler.length) return fehler;
 
       const ziel = vorhanden || f;
-      Object.assign(ziel, { name: w.name.trim(), von: w.von, bis: w.bis || w.von });
+      Object.assign(ziel, { name: w.name.trim(), von: w.von, bis: bis || w.von });
       if (!vorhanden) daten.vorlesungsfrei.push(ziel);
       datenGeaendert();
+      if (bis !== w.bis) zeigeMeldung('Bis-Datum auf ' + formatDatum(bis) + ' korrigiert (lag vor dem Von-Datum)');
       return [];
     },
   });

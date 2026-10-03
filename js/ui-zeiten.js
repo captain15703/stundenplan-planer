@@ -119,11 +119,13 @@ function oeffneBlockDialog(id) {
       const w = formularWerte(formular);
       const fehler = [];
       if (!w.name.trim()) fehler.push('Bitte eine Bezeichnung eingeben.');
-      if (w.art === 'zeitraum') {
-        if (!w.datumVon) fehler.push('Bitte das Datum angeben.');
-        if (w.datumVon && w.datumBis && w.datumBis < w.datumVon) fehler.push('Das Bis-Datum liegt vor dem Von-Datum.');
-      } else if (w.gueltigAb && w.gueltigBis && w.gueltigBis < w.gueltigAb) {
-        fehler.push('„gilt bis“ liegt vor „gilt ab“.');
+      // Bis-Datum vor dem Von-Datum (vertipptes Jahr) → ins nächste Jahr legen
+      const vonDatum = w.art === 'zeitraum' ? w.datumVon : w.gueltigAb;
+      const bisEingabe = w.art === 'zeitraum' ? w.datumBis : w.gueltigBis;
+      const bisDatum = korrigiereEnddatum(vonDatum, bisEingabe);
+      if (w.art === 'zeitraum' && !w.datumVon) fehler.push('Bitte das Datum angeben.');
+      if (vonDatum && bisDatum && bisDatum < vonDatum) {
+        fehler.push(w.art === 'zeitraum' ? 'Das Bis-Datum liegt vor dem Von-Datum.' : '„gilt bis“ liegt vor „gilt ab“.');
       }
       if (!w.ganztags) {
         if (!w.von || !w.bis) fehler.push('Bitte Beginn- und Endzeit angeben.');
@@ -137,8 +139,8 @@ function oeffneBlockDialog(id) {
         name: w.name.trim(),
         art: w.art,
         wochentag: Number(w.wochentag),
-        datumVon: w.art === 'zeitraum' ? w.datumVon : w.gueltigAb,
-        datumBis: w.art === 'zeitraum' ? (w.datumBis || w.datumVon) : w.gueltigBis,
+        datumVon: vonDatum,
+        datumBis: w.art === 'zeitraum' ? (bisDatum || w.datumVon) : bisDatum,
         ganztags: w.ganztags,
         von: w.von,
         bis: w.bis,
@@ -147,6 +149,7 @@ function oeffneBlockDialog(id) {
       });
       if (!vorhanden) daten.geblockteZeiten.push(ziel);
       datenGeaendert();
+      if (bisDatum !== bisEingabe) zeigeMeldung('Bis-Datum auf ' + formatDatum(bisDatum) + ' korrigiert (lag vor dem Von-Datum)');
       return [];
     },
   });

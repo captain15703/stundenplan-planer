@@ -200,6 +200,9 @@ function normalisiereDaten(roh) {
   });
   einstellungen.prioritaeten = prioritaeten.map((p) => ({ schluessel: p.schluessel, aktiv: p.aktiv !== false }));
 
+  // Enddaten vor dem Beginn (vertipptes Jahr) werden überall automatisch korrigiert
+  einstellungen.semesterEnde = korrigiereEnddatum(einstellungen.semesterStart, einstellungen.semesterEnde);
+
   return {
     version: DATEN_VERSION,
     einstellungen,
@@ -213,13 +216,17 @@ function normalisiereDaten(roh) {
         optionen: liste(v.optionen).map((o) => ({
           ...neueOption(''),
           ...o,
-          termine: liste(o.termine).map((t) => ({
-            ...neuerTermin(),
-            ...t,
-            wochentag: Number(t.wochentag) || 1,
-            startwoche: Number(t.startwoche) === 2 ? 2 : 1,
-            daten: Array.isArray(t.daten) ? t.daten.filter((datum) => typeof datum === 'string' && datum) : [],
-          })),
+          termine: liste(o.termine).map((t) => {
+            const termin = {
+              ...neuerTermin(),
+              ...t,
+              wochentag: Number(t.wochentag) || 1,
+              startwoche: Number(t.startwoche) === 2 ? 2 : 1,
+              daten: Array.isArray(t.daten) ? t.daten.filter((datum) => typeof datum === 'string' && datum) : [],
+            };
+            termin.ende = korrigiereEnddatum(termin.start || einstellungen.semesterStart, termin.ende);
+            return termin;
+          }),
         })),
       })),
     })),
@@ -229,8 +236,13 @@ function normalisiereDaten(roh) {
       wochentag: Number(g.wochentag) || 1,
       pufferVor: leseZahl(g.pufferVor, 0),
       pufferNach: leseZahl(g.pufferNach, 0),
+      datumBis: korrigiereEnddatum(g.datumVon, g.datumBis ?? ''),
     })),
-    vorlesungsfrei: liste(quelle.vorlesungsfrei).map((f) => ({ ...neueVorlesungsfreieZeit(), ...f })),
+    vorlesungsfrei: liste(quelle.vorlesungsfrei).map((f) => ({
+      ...neueVorlesungsfreieZeit(),
+      ...f,
+      bis: korrigiereEnddatum(f.von, f.bis ?? ''),
+    })),
     favoriten: liste(quelle.favoriten)
       .filter((f) => f.auswahl && typeof f.auswahl === 'object')
       .map((f) => ({
