@@ -68,6 +68,37 @@ test('Uhrzeit ↔ Minuten', () => {
   gleich(minutenZuZeit(615), '10:15');
 });
 
+test('Enddatum vor dem Beginn wird ins nächste Jahr gelegt', () => {
+  gleich(korrigiereEnddatum('2026-10-12', '2026-02-07'), '2027-02-07', 'vertipptes Jahr:');
+  gleich(korrigiereEnddatum('2026-10-12', '2027-02-07'), '2027-02-07', 'schon richtig:');
+  gleich(korrigiereEnddatum('2026-12-21', '2026-01-06'), '2027-01-06', 'über Silvester:');
+  gleich(korrigiereEnddatum('2026-10-12', '2024-02-07'), '2027-02-07', 'mehrere Jahre:');
+  gleich(korrigiereEnddatum('2027-10-01', '2024-02-29'), '2028-02-29', '29.02. im Schaltjahr:');
+  gleich(korrigiereEnddatum('2026-10-01', '2024-02-29'), '2027-02-28', '29.02. ohne Schaltjahr:');
+  gleich(korrigiereEnddatum('2026-10-12', ''), '', 'leeres Ende:');
+  gleich(korrigiereEnddatum('', '2026-02-07'), '2026-02-07', 'ohne Beginn:');
+  gleich(korrigiereEnddatum('2026-10-12', '1990-02-07'), '1990-02-07', 'weit daneben → nicht raten:');
+});
+
+test('Gespeicherte Daten mit vertipptem Enddatum werden beim Laden korrigiert', () => {
+  const geladen = normalisiereDaten({
+    einstellungen: { semesterStart: '2026-10-12', semesterEnde: '2026-02-07' },
+    module: [M('A', 5, true, [V('Seminar', [O('', [T(3, '12:00', '14:00', { start: '2026-11-04', ende: '2026-01-27' })])])])],
+    geblockteZeiten: [{ name: 'Urlaub', art: 'zeitraum', datumVon: '2026-12-28', datumBis: '2026-01-03', ganztags: true }],
+    vorlesungsfrei: [{ name: 'Weihnachten', von: '2026-12-21', bis: '2026-01-06' }],
+  });
+  gleich(geladen.einstellungen.semesterEnde, '2027-02-07', 'Vorlesungsende:');
+  gleich(geladen.module[0].veranstaltungen[0].optionen[0].termine[0].ende, '2027-01-27', 'Termin-Ende:');
+  gleich(geladen.geblockteZeiten[0].datumBis, '2027-01-03', 'geblockte Zeit:');
+  gleich(geladen.vorlesungsfrei[0].bis, '2027-01-06', 'vorlesungsfrei:');
+});
+
+test('Zeiträume werden mit Jahreszahl beschrieben', () => {
+  setzeDaten({ einstellungen: { semesterEnde: '2027-02-07' } });
+  const text = beschreibeTermin(T(1, '10:00', '12:00', { start: '2026-10-19' }));
+  wahr(text.includes('19.10.2026–07.02.2027'), 'erhalten: ' + text);
+});
+
 /* ---------- Termine → Vorkommen ---------- */
 
 test('Wöchentlicher Termin im eigenen Zeitraum', () => {

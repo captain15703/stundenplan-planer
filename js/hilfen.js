@@ -144,6 +144,28 @@ function formatDatum(datum, { mitWochentag = false, mitJahr = true } = {}) {
   return text;
 }
 
+function istSchaltjahr(jahr) {
+  return (jahr % 4 === 0 && jahr % 100 !== 0) || jahr % 400 === 0;
+}
+
+// Liegt ein Enddatum vor dem Beginn – meist ist nur das Jahr vertippt,
+// z. B. 07.02.2026 statt 07.02.2027 –, wird es auf dasselbe Datum im
+// nächsten passenden Jahr gesetzt. Liefert das (ggf. korrigierte) Enddatum.
+function korrigiereEnddatum(start, ende) {
+  const startTag = datumZuTagNr(start);
+  const endeTag = datumZuTagNr(ende);
+  if (startTag === null || endeTag === null || endeTag >= startTag) return ende;
+
+  let [jahr, monat, tag] = String(ende).split('-').map(Number);
+  for (let versuch = 0; versuch < 5; versuch++) {
+    jahr++;
+    const tagImJahr = monat === 2 && tag === 29 && !istSchaltjahr(jahr) ? 28 : tag; // 29.02. gibt es nicht jedes Jahr
+    const kandidat = String(jahr).padStart(4, '0') + '-' + zweistellig(monat) + '-' + zweistellig(tagImJahr);
+    if (datumZuTagNr(kandidat) >= startTag) return kandidat;
+  }
+  return ende; // weit daneben – dann lieber nicht raten
+}
+
 // Zeitpunkt (z. B. "2026-10-02T13:45:00.000Z") als lokales Datum "02.10.2026"
 function formatZeitpunkt(zeitpunkt) {
   const datum = new Date(zeitpunkt);

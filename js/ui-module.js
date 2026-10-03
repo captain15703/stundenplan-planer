@@ -240,15 +240,19 @@ function oeffneVeranstaltungDialog(modulId, veranstaltungId) {
     breit: true,
     inhalt: '<div id="va-editor"></div>',
     beimSpeichern() {
-      const fehler = pruefeEntwurf(entwurf);
-      if (fehler.length) return fehler;
+      const korrekturen = [];
+      const fehler = pruefeEntwurf(entwurf, korrekturen);
+      if (fehler.length) {
+        if (korrekturen.length) zeichneEntwurf(); // korrigierte Werte (z. B. Enddatum) im Formular zeigen
+        return fehler;
+      }
       if (vorhanden) {
         Object.assign(vorhanden, entwurf);
       } else {
         modul.veranstaltungen.push(entwurf);
       }
       datenGeaendert();
-      zeigeMeldung('Lehrveranstaltung gespeichert');
+      zeigeMeldung(['Lehrveranstaltung gespeichert', ...korrekturen].join('\n'));
       return [];
     },
   });
@@ -286,9 +290,28 @@ function uebernehmeEingabe(feld, istAbgeschlossen) {
   } else {
     const termin = entwurf.optionen[o].termine[t];
     termin[name] = (name === 'wochentag' || name === 'startwoche') ? Number(feld.value) : feld.value;
-    // Diese Felder ändern, was sonst noch angezeigt wird → neu zeichnen
-    if (istAbgeschlossen && ['rhythmus', 'wochentag', 'start'].includes(name)) zeichneEntwurf();
+    // Diese Auswahlboxen ändern, welche Felder angezeigt werden → neu zeichnen
+    if (istAbgeschlossen && (name === 'rhythmus' || name === 'wochentag')) zeichneEntwurf();
+    // Beim Beginn-Datum NICHT neu zeichnen: Der Browser meldet schon Zwischenstände
+    // während des Tippens (z. B. Jahr "0002"), und das Neuzeichnen würde den Cursor
+    // aus dem Feld werfen. Nur die Texte der Startwoche-Auswahl werden angepasst.
+    if (name === 'start') aktualisiereStartwocheTexte(termin, o, t);
   }
+}
+
+// Texte für die Startwoche-Auswahl, z. B. [[1, "ab Mi 14.10.2026"], [2, "ab Mi 21.10.2026"]]
+function startwocheOptionen(termin) {
+  const ersterW1 = ersterTerminTag({ ...termin, startwoche: 1 });
+  const text = (versatz) => ersterW1 === null
+    ? (versatz ? 'ab der 2. Woche' : 'ab der 1. Woche')
+    : 'ab ' + formatDatum(ersterW1 + versatz, { mitWochentag: true });
+  return [[1, text(0)], [2, text(7)]];
+}
+
+function aktualisiereStartwocheTexte(termin, o, t) {
+  const auswahl = $(`#va-editor select[data-feld="startwoche"][data-o="${o}"][data-t="${t}"]`);
+  if (!auswahl) return;
+  startwocheOptionen(termin).forEach(([, text], i) => { auswahl.options[i].textContent = text; });
 }
 
 // Gruppen, Termine und Block-Daten hinzufügen/entfernen
@@ -406,13 +429,9 @@ function terminEditorHtml(termin, o, t, loeschbar) {
   } else {
     if (termin.rhythmus === 'zweiwoechentlich') {
       // Die zwei möglichen ersten Termine zur Auswahl anbieten
-      const ersterW1 = ersterTerminTag({ ...termin, startwoche: 1 });
-      const text = (versatz) => ersterW1 === null
-        ? (versatz ? 'ab der 2. Woche' : 'ab der 1. Woche')
-        : 'ab ' + formatDatum(ersterW1 + versatz, { mitWochentag: true });
       html += `
       <label class="feld">Startwoche (erster Termin)
-        <select data-feld="startwoche" ${attr}>${optionenHtml([[1, text(0)], [2, text(7)]], termin.startwoche)}</select>
+        <select data-feld="startwoche" ${attr}>${optionenHtml(startwocheOptionen(termin), termin.startwoche)}</select>
       </label>`;
     }
     html += `
@@ -432,8 +451,10 @@ function terminEditorHtml(termin, o, t, loeschbar) {
   return html + '</div>';
 }
 
-// Prüft den Entwurf und liefert eine Liste verständlicher Fehlermeldungen
-function pruefeEntwurf(v) {
+// Prüft den Entwurf und liefert eine Liste verständlicher Fehlermeldungen.
+// Automatische Korrekturen (z. B. vertipptes Jahr beim Enddatum) werden
+// durchgeführt und in "korrekturen" beschrieben.
+function pruefeEntwurf(v, korrekturen = []) {
   const fehler = [];
   const e = daten.einstellungen;
   const mehrere = v.optionen.length > 1;
@@ -463,10 +484,17 @@ function pruefeEntwurf(v) {
       } else {
         if (!termin.start && !e.semesterStart) fehler.push(wo + 'Kein Beginn: Datum eintragen oder Vorlesungszeitraum in den Einstellungen festlegen.');
         if (!termin.ende && !e.semesterEnde) fehler.push(wo + 'Kein Ende: Datum eintragen oder Vorlesungszeitraum in den Einstellungen festlegen.');
+        // Ende vor dem Beginn? Dann ist meist das Jahr vertippt → ins nächste Jahr legen
+        const korrigiert = korrigiereEnddatum(termin.start || e.semesterStart, termin.ende);
+        if (korrigiert !== termin.ende) {
+          korrekturen.push(wo + 'Ende auf ' + formatDatum(korrigiert) + ' korrigiert (lag vor dem Beginn).');
+          termin.ende = korrigiert;
+        }
         const { start, ende } = zeitraumVon(termin);
         if (start !== null && ende !== null) {
           const erster = ersterTerminTag(termin);
-          if (start > ende) fehler.push(wo + 'Das Enddatum liegt vor dem Beginn.');
+          if (start > ende && !termin.ende) fehler.push(wo + 'Der Beginn liegt nach dem Vorlesungsende (' + formatDatum(ende) + ').');
+          else if (start > ende) fehler.push(wo + 'Das Enddatum liegt vor dem Beginn.');
           else if (ende - start > 366) fehler.push(wo + 'Der Zeitraum ist länger als ein Jahr – Tippfehler im Datum?');
           else if (erster > ende) fehler.push(wo + 'Im gewählten Zeitraum gibt es keinen einzigen Termin.');
         }

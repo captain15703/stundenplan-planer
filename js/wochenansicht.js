@@ -55,8 +55,8 @@ function regelwocheHtml(optionInfos) {
         const erster = ersterTerminTag(termin);
         hinweise.push('14-tägig' + (erster !== null ? ' ab ' + formatDatum(erster, { mitJahr: false }) : ''));
       }
-      if (termin.start) hinweise.push('ab ' + formatDatum(termin.start, { mitJahr: false }));
-      if (termin.ende) hinweise.push('bis ' + formatDatum(termin.ende, { mitJahr: false }));
+      if (termin.start) hinweise.push('ab ' + formatDatum(termin.start));
+      if (termin.ende) hinweise.push('bis ' + formatDatum(termin.ende));
       eintraege.push(uniEintrag(info, termin, Number(termin.wochentag), {
         gestreift: termin.rhythmus === 'zweiwoechentlich',
         hinweis: hinweise.join(', '),
