@@ -66,6 +66,7 @@ function zeigeFavoritenTab() {
         ${a.probleme.length ? `<div class="hinweis klein"><strong>Veraltet:</strong><ul>${a.probleme.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>` : ''}
         <div class="karte-aktionen">
           <button class="knopf klein" data-aktion="favorit-ics" data-id="${favorit.id}">📅 .ics</button>
+          <button class="knopf klein" data-aktion="favorit-drucken" data-id="${favorit.id}" title="Im Druckdialog „Als PDF speichern“ wählen">🖨 PDF</button>
           <button class="knopf klein" data-aktion="favorit-umbenennen" data-id="${favorit.id}">Umbenennen</button>
           <button class="knopf klein gefahr" data-aktion="favorit-loeschen" data-id="${favorit.id}">Löschen</button>
         </div>
@@ -90,6 +91,7 @@ function vergleichHtml(eintraege) {
     { name: 'ECTS', wert: (a) => a.ects, text: (a) => formatZahl(a.ects), besser: (x, y) => ectsAbstand(x, ziel) - ectsAbstand(y, ziel) },
     { name: 'Ø Uni-Tage/Woche', wert: (a) => a.kennzahlen.tageProWoche, text: (a) => formatZahl(a.kennzahlen.tageProWoche), besser: (x, y) => x - y },
     { name: 'Blocktage im Semester', wert: (a) => a.kennzahlen.blockTage, text: (a) => String(a.kennzahlen.blockTage), besser: (x, y) => x - y },
+    { name: 'Prüfungen am selben/Folgetag', wert: (a) => pruefungsplan(a.module).hinweise.length, text: (a) => String(pruefungsplan(a.module).hinweise.length), besser: (x, y) => x - y },
     { name: 'Ø Freistunden/Woche', wert: (a) => a.kennzahlen.freistundenProWoche, text: (a) => formatZahl(a.kennzahlen.freistundenProWoche) + ' h', besser: (x, y) => x - y },
     { name: 'Ø Beginn', wert: (a) => a.kennzahlen.beginn ?? MINUTEN_PRO_TAG, text: (a) => a.kennzahlen.beginn !== null ? minutenZuZeit(Math.round(a.kennzahlen.beginn)) : '–', besser: (x, y) => y - x },
     { name: 'Frühester Beginn', wert: (a) => a.kennzahlen.fruehesterBeginn ?? MINUTEN_PRO_TAG, text: (a) => a.kennzahlen.fruehesterBeginn !== null ? minutenZuZeit(a.kennzahlen.fruehesterBeginn) : '–', besser: (x, y) => y - x },
@@ -113,7 +115,7 @@ function vergleichHtml(eintraege) {
 
   // Gemeinsame Wochenauswahl für alle Raster
   const alleInfos = eintraege.flatMap((e) => e.auswertung.infos);
-  const wochen = wochenAuswahl(alleInfos);
+  const wochen = wochenAuswahl(alleInfos, eintraege.flatMap((e) => e.auswertung.module));
   if (!wochen.some(([wert]) => wert === String(vergleichWoche))) vergleichWoche = 'regel';
 
   return `
@@ -128,7 +130,7 @@ function vergleichHtml(eintraege) {
         ${eintraege.map((e) => `
           <div>
             <h4 class="unterueberschrift">${escapeHtml(e.favorit.name)}</h4>
-            ${wochenansichtHtml(e.auswertung.infos, vergleichWoche)}
+            ${wochenansichtHtml(e.auswertung.infos, vergleichWoche, e.auswertung.module)}
           </div>`).join('')}
       </div>
     </section>`;
@@ -162,8 +164,14 @@ aktionen['vergleich-woche'] = (werte, element) => {
 aktionen['favorit-ics'] = (werte) => {
   const favorit = findeFavorit(werte.id);
   const auswertung = varianteAusAuswahl(favorit.modulIds, favorit.auswahl);
-  exportiereIcs(auswertung.infos, favorit.name);
+  exportiereIcs(auswertung.infos, favorit.name, auswertung.module);
   zeigeMeldung('Kalenderdatei erstellt');
+};
+
+aktionen['favorit-drucken'] = (werte) => {
+  const favorit = findeFavorit(werte.id);
+  const auswertung = varianteAusAuswahl(favorit.modulIds, favorit.auswahl);
+  druckeVariante(favorit.name, auswertung.infos, auswertung.module);
 };
 
 aktionen['favorit-umbenennen'] = (werte) => {

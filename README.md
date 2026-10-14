@@ -41,6 +41,10 @@ Unter **Einstellungen → Beispieldaten laden** (oder im leeren Tab *Module*) l�
   - **Block**: einzelne Daten mit gleicher Uhrzeit. Für andere Uhrzeiten (z. B. Fr nachmittags, Sa ganztags) einfach einen weiteren Termin hinzufügen.
 - **Alternativtermine:** Gibt es mehrere Gruppen (Übung A/B/C), füge mit **+ Alternativtermin** weitere Gruppen hinzu. Der Planer belegt genau eine davon. Eine Gruppe kann auch aus mehreren Terminen bestehen (z. B. Di und Do).
 - Mit den **Schaltern** deaktivierst du Module, einzelne Lehrveranstaltungen oder einzelne Gruppen, z. B. „Gruppe C passt mir nicht“. Die Varianten berechnen sich danach automatisch neu.
+- **+ Prüfung**: Prüfungstermine des Moduls mit Datum, Uhrzeit (leer lassen bei Abgabefristen) und Raum. Ein Modul kann mehrere Termine haben, z. B. Klausur und Abgabe. Wiederholungstermine lassen sich markieren; sie werden angezeigt, aber nicht geprüft. Es gelten diese Regeln:
+  - **Eine Prüfung hat immer Vorrang.** Überschneidungen mit Vorlesungen, Arbeit oder anderen geblockten Zeiten spielen keine Rolle.
+  - **Echte Überschneidungen schließen aus.** Überschneiden sich die Prüfungen zweier Module wirklich, werden diese Module nie zusammen belegt.
+  - **Enge Abstände ergeben nur Hinweise.** Liegen zwei Prüfungen am selben Tag oder an zwei Tagen hintereinander, zeigt die App das an.
 
 ### 3. Geblockte Zeiten (Tab *Geblockte Zeiten*)
 Hier trägst du Zeiten ein, in denen keine Uni stattfinden darf, z. B. Arbeit oder Sport:
@@ -59,11 +63,14 @@ Hier trägst du Zeiten ein, in denen keine Uni stattfinden darf, z. B. Arbeit od
   Die Durchschnitte beziehen sich auf eine **normale Vorlesungswoche**: Gemittelt wird über alle Wochen ohne Feiertage oder Ferien. Angebrochene Wochen am Semesteranfang und -ende zählen ebenfalls nicht mit. Drei feste Uni-Tage ergeben so genau 3. 14-tägige Termine oder Kurse nur in einem Teil des Semesters ergeben einen ehrlichen Mittelwert (z. B. 2,5). **Blocktermine** zählen nicht in die Wochenwerte, sie stehen separat als „+ 6 Blocktage“ daneben.
 - **Anzahl anzeigen**: begrenzt die Liste auf die besten 5 bis 100 Varianten.
 - **Wochenansicht**: In der *Regelwoche* stehen alle wiederkehrenden Termine. 14-tägige Termine sind schraffiert, Blocktermine stehen als Liste darunter. Über die Auswahl kannst du auch jede **konkrete Kalenderwoche** ansehen. Geblockte Zeiten erscheinen grau, ihr Puffer heller schraffiert. Ein Klick (oder Antippen) auf einen Termin zeigt alle Details.
-- Findet der Planer keine Variante, nennt er den Grund, z. B. zwei feste Pflichttermine, die sich überschneiden. Unter „… Termine wurden ausgeschlossen“ steht, welche Gruppen mit geblockten Zeiten kollidieren.
+- **Prüfungen**: Unter dem Raster steht der Prüfungsplan der Variante, nach Datum sortiert, mit Hinweisen zu Prüfungen am selben oder am Folgetag. In der konkreten Kalenderwoche erscheinen Prüfungen als umrandete Kästchen über allem anderen.
+- Findet der Planer keine Variante, nennt er den Grund, z. B. zwei feste Pflichttermine, die sich überschneiden. Unter „… Hinweise zu ausgeschlossenen Terminen und Kombinationen“ steht, welche Gruppen mit geblockten Zeiten kollidieren und welche Module wegen überschneidender Prüfungen nicht zusammen belegt werden.
+- **🖨 Drucken / PDF**: öffnet die Druckansicht. Seite 1 zeigt das Wochenraster (A4 quer), danach folgen Prüfungsplan, Module und Termine. Im Druckdialog „Als PDF speichern“ wählen, um eine PDF-Datei zu erhalten (auch am Handy über *Teilen → Drucken*).
 
 ### 5. Favoriten (Tab *Favoriten*)
 - Speichere gute Varianten mit **☆ Als Favorit speichern**.
 - Im Tab *Favoriten* setzt du bei bis zu drei Favoriten ein Häkchen und vergleichst sie nebeneinander: Kennzahlen-Tabelle (bester Wert grün) und Wochenraster.
+- Jeder Favorit lässt sich auch einzeln drucken oder als PDF speichern (**🖨 PDF**).
 - Ein Favorit merkt sich nur, welche Module und Gruppen gewählt sind. Änderst du später einen Raum oder eine Uhrzeit, ist das automatisch berücksichtigt. Wird dadurch etwas ungültig (gelöscht, neue Überschneidung), steht beim Favoriten „Veraltet“ mit dem Grund.
 
 ### 6. Export für Google Kalender
@@ -71,7 +78,7 @@ Hier trägst du Zeiten ein, in denen keine Uni stattfinden darf, z. B. Arbeit od
 2. [Google Kalender](https://calendar.google.com) im Browser öffnen. Tipp: Lege vorher über *Weitere Kalender → +* einen **neuen Kalender** an, z. B. „Uni“. Dann kannst du ihn später mit einem Klick wieder entfernen.
 3. **Zahnrad → Einstellungen → Importieren & Exportieren → Importieren**, die `.ics`-Datei auswählen, den Kalender wählen und **Importieren** klicken.
 
-Die Datei nutzt die Zeitzone Europe/Berlin. Wiederkehrende Termine werden als Serien mit Enddatum exportiert, vorlesungsfreie Tage als Ausnahmen, Blocktermine als Einzeltermine. Der Import ist nur in der Browser-Version von Google Kalender möglich, nicht in der App.
+Die Datei nutzt die Zeitzone Europe/Berlin. Wiederkehrende Termine werden als Serien mit Enddatum exportiert, vorlesungsfreie Tage als Ausnahmen, Blocktermine als Einzeltermine. Prüfungstermine der belegten Module kommen als eigene Termine dazu (ohne Uhrzeit ganztägig). Der Import ist nur in der Browser-Version von Google Kalender möglich, nicht in der App.
 
 ### 7. Backup
 Unter **Einstellungen → Daten & Backup**:
@@ -89,9 +96,11 @@ css/style.css         Gestaltung (mobil zuerst, helles und dunkles Farbschema)
 js/hilfen.js          kleine Hilfsfunktionen (HTML, Datum, Uhrzeit, Dialoge)
 js/speicher.js        Datenmodell, Laden/Speichern im localStorage
 js/termine.js         Termine → konkrete Vorkommen (Datum + Uhrzeit)
+js/pruefungen.js      Prüfungstermine: Überschneidungen, Hinweise, Prüfungsplan
 js/varianten.js       Überschneidungsprüfung, Variantensuche, Kennzahlen, Sortierung
 js/wochenansicht.js   Wochenraster
 js/ics.js             Kalender-Export (iCalendar, Zeitzone Europe/Berlin)
+js/druck.js           Druckansicht / PDF
 js/backup.js          JSON-Backup
 js/beispieldaten.js   Beispielsemester
 js/ui-*.js            Oberfläche der einzelnen Tabs

@@ -208,7 +208,7 @@ function diagnoseHtml(erg) {
       fehler.map((d) => `<li>${escapeHtml(d.text)}</li>`).join('') + '</ul></div>';
   }
   if (infos.length) {
-    html += `<details class="hinweis info"><summary>${infos.length} ${infos.length === 1 ? 'Termin wurde' : 'Termine wurden'} ausgeschlossen</summary><ul>` +
+    html += `<details class="hinweis info"><summary>${infos.length} ${infos.length === 1 ? 'Hinweis' : 'Hinweise'} zu ausgeschlossenen Terminen und Kombinationen</summary><ul>` +
       infos.map((d) => `<li>${escapeHtml(d.text)}</li>`).join('') + '</ul></details>';
   }
   return html;
@@ -262,7 +262,7 @@ function variantenDetailHtml() {
     </div>`;
 
   // Wochen-Auswahl; falls die gemerkte Woche nicht mehr existiert → Regelwoche
-  const wochen = wochenAuswahl(infos);
+  const wochen = wochenAuswahl(infos, variante.module);
   if (!wochen.some(([wert]) => wert === String(gewaehlteWoche))) gewaehlteWoche = 'regel';
 
   const favorit = findeFavoritZu(variante);
@@ -276,13 +276,16 @@ function variantenDetailHtml() {
             ? `<button class="knopf" data-aktion="tab-favoriten">★ Favorit „${escapeHtml(favorit.name)}“</button>`
             : '<button class="knopf" data-aktion="favorit-speichern">☆ Als Favorit speichern</button>'}
           <button class="knopf" data-aktion="variante-ics">📅 Kalender-Export (.ics)</button>
+          <button class="knopf" data-aktion="variante-drucken" title="Im Druckdialog „Als PDF speichern“ wählen">🖨 Drucken / PDF</button>
         </div>
       </div>
       ${kennzahlenHtml(variante.ects, ziel, k)}
       <label class="feld wochen-wahl">Ansicht
         <select data-aktion="woche-waehlen">${optionenHtml(wochen, String(gewaehlteWoche))}</select>
       </label>
-      ${wochenansichtHtml(infos, gewaehlteWoche)}
+      ${wochenansichtHtml(infos, gewaehlteWoche, variante.module)}
+      <h4 class="unterueberschrift">Prüfungen</h4>
+      ${pruefungsplanHtml(variante.module)}
       ${belegungHtml(variante.module, infos)}
     </div>`;
 }
@@ -382,9 +385,15 @@ aktionen['favorit-speichern'] = () => {
 
 aktionen['tab-favoriten'] = () => zeigeTab('favoriten');
 
+aktionen['variante-drucken'] = () => {
+  const variante = aktuelleVariante();
+  druckeVariante((daten.einstellungen.semesterName || 'Stundenplan') + ' – Variante ' + (gewaehlteVariante + 1),
+    optionInfosVon(variante), variante.module);
+};
+
 aktionen['variante-ics'] = () => {
   const variante = aktuelleVariante();
   const name = (daten.einstellungen.semesterName || 'Stundenplan') + ' – Variante ' + (gewaehlteVariante + 1);
-  exportiereIcs(optionInfosVon(variante), name);
+  exportiereIcs(optionInfosVon(variante), name, variante.module);
   zeigeMeldung('Kalenderdatei erstellt');
 };

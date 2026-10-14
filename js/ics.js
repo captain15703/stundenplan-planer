@@ -7,6 +7,7 @@
      Wiederholungsregel (RRULE) exportiert; vorlesungsfreie Tage werden
      als Ausnahmen (EXDATE) ausgelassen.
    - Jeder Blocktermin wird ein eigener Einzeltermin.
+   - Prüfungstermine der belegten Module kommen als Einzeltermine dazu.
    ===================================================================== */
 
 'use strict';
@@ -89,7 +90,8 @@ function icsFalten(zeile) {
 /* ---------- Kalender erzeugen ---------- */
 
 // optionInfos: Liste wie in varianten.js ({ modul, veranstaltung, option, vorkommen })
-function erzeugeIcs(optionInfos, kalenderName) {
+// module: belegte Module – ihre Prüfungstermine werden mit exportiert
+function erzeugeIcs(optionInfos, kalenderName, module = []) {
   const zeilen = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -123,6 +125,11 @@ function erzeugeIcs(optionInfos, kalenderName) {
   for (const info of optionInfos) {
     for (const termin of info.option.termine) {
       zeilen.push(...terminAlsIcs(info, termin, zeitstempel));
+    }
+  }
+  for (const modul of module) {
+    for (const pruefung of modul.pruefungen || []) {
+      zeilen.push(...pruefungAlsIcs(modul, pruefung, zeitstempel));
     }
   }
   zeilen.push('END:VCALENDAR');
@@ -189,9 +196,32 @@ function terminAlsIcs(info, termin, zeitstempel) {
   return zeilen;
 }
 
+// Ein Prüfungstermin als Einzeltermin – mit Uhrzeit oder ganztägig (z. B. Abgabefrist)
+function pruefungAlsIcs(modul, pruefung, zeitstempel) {
+  const tag = datumZuTagNr(pruefung.datum);
+  if (tag === null) return [];
+  const start = zeitZuMinuten(pruefung.von);
+  const ende = zeitZuMinuten(pruefung.bis);
+  const zeilen = ['BEGIN:VEVENT', 'UID:' + pruefung.id + '@stundenplan-planer', 'DTSTAMP:' + zeitstempel];
+  if (start !== null && ende !== null) {
+    zeilen.push('DTSTART;TZID=' + ICS_ZEITZONE + ':' + icsOrtszeit(tag, start));
+    zeilen.push('DTEND;TZID=' + ICS_ZEITZONE + ':' + icsOrtszeit(tag, ende));
+  } else {
+    // ganztägig: Ende ist (laut Standard) der Folgetag
+    zeilen.push('DTSTART;VALUE=DATE:' + tagNrZuDatum(tag).replace(/-/g, ''));
+    zeilen.push('DTEND;VALUE=DATE:' + tagNrZuDatum(tag + 1).replace(/-/g, ''));
+  }
+  zeilen.push('SUMMARY:' + icsText('Prüfung: ' + modul.name + ' – ' + (pruefung.bezeichnung || 'Prüfung') +
+    (pruefung.wiederholung ? ' (Wiederholungstermin)' : '')));
+  if (pruefung.raum) zeilen.push('LOCATION:' + icsText(pruefung.raum));
+  if (modul.nummer) zeilen.push('DESCRIPTION:' + icsText('Modulnummer: ' + modul.nummer));
+  zeilen.push('END:VEVENT');
+  return zeilen;
+}
+
 // Erzeugt die Datei und startet den Download
-function exportiereIcs(optionInfos, name) {
-  const inhalt = erzeugeIcs(optionInfos, name);
+function exportiereIcs(optionInfos, name, module = []) {
+  const inhalt = erzeugeIcs(optionInfos, name, module);
   const dateiname = (name || 'stundenplan').replace(/[^a-z0-9äöüß_-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() + '.ics';
   ladeDateiHerunter(dateiname, inhalt, 'text/calendar;charset=utf-8');
 }

@@ -72,8 +72,10 @@ function modulKarteHtml(modul) {
       ${meta.length ? `<p class="meta">${meta.join(' · ')}</p>` : ''}
       ${modul.notizen ? `<details class="notizen"><summary>Notizen</summary><p>${escapeHtml(modul.notizen)}</p></details>` : ''}
       <ul class="veranstaltungen">${veranstaltungen}</ul>
+      ${pruefungenHtml(modul)}
       <div class="karte-aktionen">
         <button class="knopf klein" data-aktion="veranstaltung-neu" data-modul="${modul.id}">+ Lehrveranstaltung</button>
+        <button class="knopf klein" data-aktion="pruefung-neu" data-modul="${modul.id}">+ Prüfung</button>
         <button class="knopf klein" data-aktion="modul-bearbeiten" data-id="${modul.id}">Bearbeiten</button>
         <button class="knopf klein gefahr" data-aktion="modul-loeschen" data-id="${modul.id}">Löschen</button>
       </div>
@@ -143,6 +145,93 @@ aktionen['veranstaltung-loeschen'] = (werte) => {
   modul.veranstaltungen = modul.veranstaltungen.filter((v) => v.id !== werte.id);
   datenGeaendert();
 };
+
+/* ---------- Prüfungstermine eines Moduls ---------- */
+
+// Liste der Prüfungen auf der Modulkarte (nach Datum sortiert)
+function pruefungenHtml(modul) {
+  if (!modul.pruefungen.length) return '';
+  const sortiert = [...modul.pruefungen].sort((a, b) => (a.datum + a.von).localeCompare(b.datum + b.von));
+  return `<div class="pruefungen-block">
+      <span class="klein gedimmt">Prüfungen</span>
+      <ul class="pruefungen">` + sortiert.map((pruefung) => `
+        <li class="${pruefung.wiederholung ? 'gedimmt' : ''}">
+          <span>📝 ${escapeHtml(beschreibePruefung(pruefung))}</span>
+          <span class="zeile-aktionen">
+            <button class="knopf-text" data-aktion="pruefung-bearbeiten" data-modul="${modul.id}" data-id="${pruefung.id}">Bearbeiten</button>
+            <button class="knopf-text gefahr" data-aktion="pruefung-loeschen" data-modul="${modul.id}" data-id="${pruefung.id}">Löschen</button>
+          </span>
+        </li>`).join('') +
+      '</ul></div>';
+}
+
+aktionen['pruefung-neu'] = (werte) => oeffnePruefungDialog(werte.modul, null);
+aktionen['pruefung-bearbeiten'] = (werte) => oeffnePruefungDialog(werte.modul, werte.id);
+
+aktionen['pruefung-loeschen'] = (werte) => {
+  const modul = findeModul(werte.modul);
+  const pruefung = modul.pruefungen.find((p) => p.id === werte.id);
+  if (!confirm(`Prüfung „${pruefung.bezeichnung || 'Prüfung'}“ am ${formatDatum(pruefung.datum)} löschen?`)) return;
+  modul.pruefungen = modul.pruefungen.filter((p) => p.id !== werte.id);
+  datenGeaendert();
+};
+
+function oeffnePruefungDialog(modulId, pruefungId) {
+  const modul = findeModul(modulId);
+  const vorhanden = pruefungId ? modul.pruefungen.find((p) => p.id === pruefungId) : null;
+  const p = vorhanden || { ...neuePruefung(), bezeichnung: modul.pruefungsform.replace(/\s*\(.*\)\s*$/, '') || 'Klausur' };
+
+  zeigeDialog({
+    titel: (vorhanden ? 'Prüfung bearbeiten' : 'Neue Prüfung') + ' – ' + modul.name,
+    inhalt: `
+      <label class="feld">Art der Prüfung
+        <input name="bezeichnung" value="${escapeHtml(p.bezeichnung)}" list="liste-pruefungsarten" placeholder="z. B. Klausur">
+        <datalist id="liste-pruefungsarten">${PRUEFUNGSARTEN.map((art) => `<option value="${art}">`).join('')}</datalist>
+      </label>
+      <div class="feldreihe">
+        <label class="feld">Datum *
+          <input type="date" name="datum" value="${escapeHtml(p.datum)}">
+        </label>
+        <label class="feld schmal">von
+          <input type="time" name="von" value="${escapeHtml(p.von)}">
+        </label>
+        <label class="feld schmal">bis
+          <input type="time" name="bis" value="${escapeHtml(p.bis)}">
+        </label>
+      </div>
+      <p class="hilfe">Uhrzeit leer lassen, wenn es keine gibt (z. B. Abgabefrist einer Hausarbeit).</p>
+      <label class="feld">Raum
+        <input name="raum" value="${escapeHtml(p.raum)}" placeholder="z. B. Audimax">
+      </label>
+      <label class="auswahl"><input type="checkbox" name="wiederholung"${p.wiederholung ? ' checked' : ''}>
+        Wiederholungstermin (wird angezeigt, aber nicht auf Überschneidungen geprüft)</label>
+      <p class="hilfe">Eine Prüfung hat immer Vorrang: Überschneidungen mit Vorlesungen, Arbeit oder anderen geblockten
+        Zeiten sind egal. Nur Module, deren Prüfungen sich wirklich überschneiden, werden nie zusammen belegt.
+        Liegen zwei Prüfungen am selben Tag oder direkt hintereinander, gibt es einen Hinweis.</p>`,
+    beimSpeichern(formular) {
+      const w = formularWerte(formular);
+      const fehler = [];
+      if (!w.datum) fehler.push('Bitte das Datum angeben.');
+      if ((w.von && !w.bis) || (!w.von && w.bis)) fehler.push('Bitte Beginn und Ende angeben – oder beide Uhrzeiten leer lassen.');
+      else if (w.von && zeitZuMinuten(w.von) >= zeitZuMinuten(w.bis)) fehler.push('Das Ende muss nach dem Beginn liegen.');
+      if (fehler.length) return fehler;
+
+      const ziel = vorhanden || p;
+      Object.assign(ziel, {
+        bezeichnung: w.bezeichnung.trim() || 'Prüfung',
+        datum: w.datum,
+        von: w.von,
+        bis: w.bis,
+        raum: w.raum.trim(),
+        wiederholung: w.wiederholung,
+      });
+      if (!vorhanden) modul.pruefungen.push(ziel);
+      datenGeaendert();
+      zeigeMeldung('Prüfung gespeichert');
+      return [];
+    },
+  });
+}
 
 /* ---------- Dialog: Modul anlegen/bearbeiten ---------- */
 

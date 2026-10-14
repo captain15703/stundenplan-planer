@@ -6,6 +6,7 @@
    daten
    ├─ einstellungen        Semester, ECTS-Ziel, Sortier-Prioritäten …
    ├─ module[]             Module mit Stammdaten
+   │   ├─ pruefungen[]         Prüfungstermine (Klausur, Abgabe …)
    │   └─ veranstaltungen[]    Vorlesung, Übung, Seminar …
    │       └─ optionen[]           Auswahlgruppe: genau EINE wird belegt
    │           └─ termine[]            wöchentlich / 14-tägig / Block
@@ -91,6 +92,7 @@ function neuesModul() {
     pflicht: true,
     aktiv: true,
     veranstaltungen: [],
+    pruefungen: [], // Prüfungstermine, siehe neuePruefung()
   };
 }
 
@@ -142,6 +144,18 @@ function neueGeblockteZeit() {
     bis: '17:00',
     pufferVor: 0, // Minuten
     pufferNach: 0, // Minuten
+  };
+}
+
+function neuePruefung() {
+  return {
+    id: neueId('pruefung'),
+    bezeichnung: '', // z. B. "Klausur", "Abgabe Hausarbeit"
+    datum: '',
+    von: '', // leer = ohne Uhrzeit (z. B. Abgabefrist)
+    bis: '',
+    raum: '',
+    wiederholung: false, // Wiederholungstermin: wird angezeigt, aber nicht auf Überschneidungen geprüft
   };
 }
 
@@ -210,6 +224,7 @@ function normalisiereDaten(roh) {
       ...neuesModul(),
       ...m,
       ects: leseZahl(m.ects, 0),
+      pruefungen: liste(m.pruefungen).map((pr) => ({ ...neuePruefung(), ...pr, wiederholung: Boolean(pr.wiederholung) })),
       veranstaltungen: liste(m.veranstaltungen).map((v) => ({
         ...neueVeranstaltung(),
         ...v,

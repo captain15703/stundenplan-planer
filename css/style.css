@@ -513,8 +513,8 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
 .tag-spalte {
   position: relative;
   border-left: 1px solid var(--linie);
-  background-image: repeating-linear-gradient(to bottom, var(--linie) 0 1px, transparent 1px var(--stunde));
 }
+.stundenlinie { position: absolute; left: 0; right: 0; border-top: 1px solid var(--linie); pointer-events: none; }
 .tag-spalte.frei {
   background-color: var(--flaeche-2);
   background-image: repeating-linear-gradient(45deg, transparent 0 8px, color-mix(in srgb, var(--linie) 70%, transparent) 8px 10px);
@@ -556,6 +556,27 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
 }
 .geblockt-kern span { display: block; padding: 2px 4px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---------- Prüfungen ---------- */
+.pruefungen-block { margin-top: 8px; padding-top: 6px; }
+.pruefungen { list-style: none; margin: 2px 0 0; padding: 0; }
+.pruefungen li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 3px 0; font-size: .9rem; }
+
+.pruefungsliste { list-style: none; margin: 0; padding: 0; }
+.pruefungsliste li { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--linie); font-size: .92rem; }
+.pruefungsliste .farbpunkt { margin-top: 5px; }
+.pruefung-datum { flex: 0 0 125px; font-weight: 600; }
+.pruefung-datum small { font-weight: 400; color: var(--text-gedimmt); }
+
+/* Prüfung im Wochenraster: liegt über allem, deutlich umrandet */
+.termin-block.pruefung-block {
+  z-index: 3;
+  background: var(--flaeche);
+  color: var(--text);
+  border: 3px solid var(--farbe);
+  box-shadow: 0 0 0 2px var(--gefahr);
+}
+.raster-kopf .kopf-pruefung { color: var(--gefahr); font-weight: 600; overflow-wrap: anywhere; }
+
 /* ---------- Breitere Bildschirme ---------- */
 @media (min-width: 700px) {
   .seitenkopf { display: flex; align-items: flex-end; gap: 24px; padding: 0 24px; }
@@ -586,4 +607,36 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
   .termine-text, .veranstaltung > .klein, .optionen { margin-left: 0; }
   .zeile-aktionen { margin-left: 0; width: 100%; }
   .va-schalter { margin-left: 0; }
+}
+
+/* ---------- Druckansicht (siehe druck.js) ----------
+   Nur wenn über „Drucken / PDF“ gedruckt wird (Klasse "drucken" am body),
+   wird alles außer dem Druckbereich ausgeblendet. */
+#druckbereich { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  /* Immer helles Farbschema und Farben mitdrucken */
+  :root {
+    --hintergrund: #ffffff; --flaeche: #ffffff; --flaeche-2: #f0f2f5; --text: #1d2330; --text-gedimmt: #5d6676;
+    --linie: #c9ced6; --gefahr: #c62f2f; --warnung-hg: #fff6dc; --warnung-rand: #e9c46a; --blockiert: #8a93a3;
+  }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; }
+
+  body.drucken > *:not(#druckbereich) { display: none !important; }
+  body.drucken #druckbereich { display: block; }
+
+  .druck-seite { font-size: 12px; }
+  .druck-seite + .druck-seite { break-before: page; }
+  .druck-seite .unterueberschrift { margin: 8px 0 4px; }
+  .druck-seite .pruefungsliste li, .druck-seite .belegung-modul, .druck-seite .blockliste li { padding: 3px 0; font-size: 12px; }
+  .druck-seite h1 { font-size: 1.3rem; margin: 0 0 2px; }
+  .druck-seite h2 { font-size: 1.1rem; margin: 14px 0 6px; }
+  .druck-unterzeile { margin: 0 0 8px; color: var(--text-gedimmt); font-size: .85rem; }
+  .raster-scroll { overflow: visible; margin: 0; padding: 0; }
+  .raster { min-width: 0; font-size: .72rem; }
+  .raster-ecke, .raster-kopf { position: static; }
+  .pruefungsliste li, .belegung-modul, .blockliste li { break-inside: avoid; }
 }

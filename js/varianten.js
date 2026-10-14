@@ -14,7 +14,8 @@
       mit "nicht belegen" und "belegen". Sobald eine Wahl mit einer
       bereits gewählten Option kollidiert, wird dieser Zweig sofort
       verworfen – dadurch bleibt die Suche auch bei vielen Alternativen
-      schnell. Zweige, in denen das ECTS-Ziel nicht mehr erreichbar ist
+      schnell. Module, deren Prüfungen sich wirklich überschneiden, werden
+      nie zusammen belegt (siehe pruefungen.js). Zweige, in denen das ECTS-Ziel nicht mehr erreichbar ist
       (oder die schon zu weit darüber liegen), werden ebenfalls
       übersprungen.
    5. Nur die besten N Varianten werden behalten (N ist einstellbar).
@@ -346,8 +347,38 @@ function berechneVarianten() {
     return ergebnis;
   }
   const pflicht = module.filter((m) => m.modul.pflicht);
-  const wahl = module.filter((m) => !m.modul.pflicht && m.moeglich);
   if (pflicht.some((m) => !m.moeglich)) return ergebnis; // Grund steht schon in der Diagnose
+
+  // Prüfungen: Überschneiden sich die Prüfungen zweier Module wirklich, dürfen sie
+  // nicht zusammen belegt werden. (Mit Vorlesungen oder geblockten Zeiten dürfen
+  // sich Prüfungen dagegen überschneiden – die Prüfung hat immer Vorrang.)
+  const pruefungsKonflikte = new Map(); // Modul → Menge der Module mit kollidierender Prüfung
+  let pflichtKollision = false;
+  for (let i = 0; i < module.length; i++) {
+    for (let j = i + 1; j < module.length; j++) {
+      const a = module[i].modul;
+      const b = module[j].modul;
+      const kollision = pruefungsKollision(a, b);
+      if (!kollision) continue;
+      if (!pruefungsKonflikte.has(a)) pruefungsKonflikte.set(a, new Set());
+      if (!pruefungsKonflikte.has(b)) pruefungsKonflikte.set(b, new Set());
+      pruefungsKonflikte.get(a).add(b);
+      pruefungsKonflikte.get(b).add(a);
+      const wann = beschreibeKollision(kollision);
+      if (a.pflicht && b.pflicht) {
+        pflichtKollision = true;
+        diagnose.push({ art: 'fehler', text: `Die Prüfungen der Pflichtmodule „${a.name}“ und „${b.name}“ überschneiden sich: ${wann}.` });
+      } else if (a.pflicht || b.pflicht) {
+        const [p, w] = a.pflicht ? [a, b] : [b, a];
+        diagnose.push({ art: 'info', text: `Wahlmodul „${w.name}“ wird nicht belegt: Seine Prüfung überschneidet sich mit der von „${p.name}“ (Pflicht) – ${wann}.` });
+      } else {
+        diagnose.push({ art: 'info', text: `„${a.name}“ und „${b.name}“ werden nie zusammen belegt: Ihre Prüfungen überschneiden sich – ${wann}.` });
+      }
+    }
+  }
+  if (pflichtKollision) return ergebnis;
+  const kollidiertMitPflicht = (modul) => pflicht.some((p) => pruefungsKonflikte.get(modul)?.has(p.modul));
+  const wahl = module.filter((m) => !m.modul.pflicht && m.moeglich && !kollidiertMitPflicht(m.modul));
 
   // Konfliktlisten: Für jede Option die Nummern der Optionen, mit denen sie kollidiert
   const konflikte = optionen.map(() => []);
@@ -445,6 +476,9 @@ function berechneVarianten() {
     if (schritt.art === 'modul') {
       const belegen = () => {
         if (zuWeitUeberZiel(ects + schritt.modul.ects)) return;
+        // Prüfung überschneidet sich mit der eines schon gewählten Moduls → nicht möglich
+        const konflikte = pruefungsKonflikte.get(schritt.modul);
+        if (konflikte && gewaehlteModule.some((m) => konflikte.has(m))) return;
         gewaehlteModule.push(schritt.modul);
         ects += schritt.modul.ects;
         suche(nr + 1);
@@ -519,6 +553,14 @@ function varianteAusAuswahl(modulIds, auswahl) {
       if (veranstaltung.aktiv && !(veranstaltung.id in auswahl)) {
         probleme.push(`„${veranstaltungName(veranstaltung)}“ in „${modul.name}“ ist in dieser Variante nicht eingeplant (neu oder wieder aktiviert).`);
       }
+    }
+  }
+
+  // Prüfungen, die sich (inzwischen) überschneiden
+  for (let i = 0; i < module.length; i++) {
+    for (let j = i + 1; j < module.length; j++) {
+      const kollision = pruefungsKollision(module[i], module[j]);
+      if (kollision) probleme.push(`Prüfungen überschneiden sich: „${module[i].name}“ und „${module[j].name}“ – ${beschreibeKollision(kollision)}.`);
     }
   }
 
