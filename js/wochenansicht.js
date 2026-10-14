@@ -17,10 +17,11 @@
 
 const PIXEL_PRO_STUNDE = 46;
 
-// Einträge für die Auswahlbox: Regelwoche + alle Wochen mit Terminen
-function wochenAuswahl(optionInfos) {
+// Einträge für die Auswahlbox: Regelwoche + alle Wochen mit Terminen oder Prüfungen
+function wochenAuswahl(optionInfos, module = []) {
   const eintraege = [['regel', 'Regelwoche']];
   const tage = optionInfos.flatMap((info) => info.vorkommen.map((v) => v.tag));
+  for (const e of pruefungsplan(module).eintraege) tage.push(e.tag);
   if (tage.length === 0) return eintraege;
   const belegteWochen = new Set(tage.map(montagVon));
   const ersterMontag = montagVon(Math.min(...tage));
@@ -33,14 +34,18 @@ function wochenAuswahl(optionInfos) {
   return eintraege;
 }
 
-// Hauptfunktion: liefert das HTML für Raster (+ Blockliste)
-function wochenansichtHtml(optionInfos, woche = 'regel') {
-  return woche === 'regel' ? regelwocheHtml(optionInfos) : kalenderwocheHtml(optionInfos, Number(woche));
+// Hauptfunktion: liefert das HTML für Raster (+ Blockliste).
+// module: die belegten Module – ihre Prüfungen erscheinen in der konkreten Woche.
+// pixelProStunde: Höhe einer Stunde im Raster (kleiner z. B. für den Ausdruck)
+function wochenansichtHtml(optionInfos, woche = 'regel', module = [], pixelProStunde = PIXEL_PRO_STUNDE) {
+  return woche === 'regel'
+    ? regelwocheHtml(optionInfos, pixelProStunde)
+    : kalenderwocheHtml(optionInfos, Number(woche), module, pixelProStunde);
 }
 
 /* ---------- Regelwoche ---------- */
 
-function regelwocheHtml(optionInfos) {
+function regelwocheHtml(optionInfos, pixelProStunde) {
   const eintraege = [];
   const blocktermine = [];
 
@@ -71,7 +76,7 @@ function regelwocheHtml(optionInfos) {
     .filter((g) => g.block);
 
   const tage = sichtbareTage(eintraege);
-  let html = rasterHtml(tage.map((wochentag) => ({ wochentag, titel: WOCHENTAGE_KURZ[wochentag - 1] })), eintraege, geblockt);
+  let html = rasterHtml(tage.map((wochentag) => ({ wochentag, titel: WOCHENTAGE_KURZ[wochentag - 1] })), eintraege, geblockt, [], pixelProStunde);
 
   if (blocktermine.length) {
     html += '<h4 class="unterueberschrift">Blocktermine</h4><ul class="blockliste">' +
@@ -86,7 +91,7 @@ function regelwocheHtml(optionInfos) {
 
 /* ---------- Konkrete Kalenderwoche ---------- */
 
-function kalenderwocheHtml(optionInfos, montag) {
+function kalenderwocheHtml(optionInfos, montag, module, pixelProStunde) {
   const sonntag = montag + 6;
   const eintraege = [];
   for (const info of optionInfos) {
@@ -117,12 +122,27 @@ function kalenderwocheHtml(optionInfos, montag) {
     for (let tag = Math.max(von, montag); tag <= Math.min(bis, sonntag); tag++) freiNamen[wochentagVon(tag)] = frei.name;
   }
 
-  const tage = sichtbareTage(eintraege).map((wochentag) => ({
+  // Prüfungen dieser Woche – sie liegen über allem anderen (Prüfung hat Vorrang)
+  const pruefungen = pruefungsplan(module).eintraege
+    .filter((e) => e.tag >= montag && e.tag <= sonntag)
+    .map((e) => ({
+      wochentag: wochentagVon(e.tag),
+      start: e.start,
+      ende: e.ende,
+      ohneZeit: e.start === null || e.ende === null,
+      farbe: e.modul.farbe,
+      titel: '📝 ' + (e.pruefung.bezeichnung || 'Prüfung'),
+      zeile2: e.modul.name,
+      zeile3: (e.start !== null && e.ende !== null ? e.pruefung.von + '–' + e.pruefung.bis : 'ohne Uhrzeit') +
+        (e.pruefung.raum ? ' · ' + e.pruefung.raum : '') + (e.pruefung.wiederholung ? ' · Wiederholung' : ''),
+    }));
+
+  const tage = sichtbareTage([...eintraege, ...pruefungen]).map((wochentag) => ({
     wochentag,
     titel: WOCHENTAGE_KURZ[wochentag - 1] + ' ' + formatDatum(montag + wochentag - 1, { mitJahr: false }),
     frei: freiNamen[wochentag] || '',
   }));
-  return rasterHtml(tage, eintraege, geblockt);
+  return rasterHtml(tage, eintraege, geblockt, pruefungen, pixelProStunde);
 }
 
 // Antippen eines Termins zeigt alle Angaben (hilfreich auf dem Handy,
@@ -177,23 +197,27 @@ function verteileSpalten(eintraege) {
 }
 
 // Baut das eigentliche Raster. tage = [{ wochentag, titel, frei }]
-function rasterHtml(tage, eintraege, geblockt) {
+function rasterHtml(tage, eintraege, geblockt, pruefungen = [], pixelProStunde = PIXEL_PRO_STUNDE) {
+  const mitZeit = pruefungen.filter((p) => !p.ohneZeit);
   // Sichtbarer Zeitbereich: mindestens 8–18 Uhr, sonst passend erweitert
-  const zeiten = [...eintraege, ...geblockt.filter((g) => g.ende - g.start < MINUTEN_PRO_TAG)];
+  const zeiten = [...eintraege, ...mitZeit, ...geblockt.filter((g) => g.ende - g.start < MINUTEN_PRO_TAG)];
   const vonStunde = Math.min(8, ...zeiten.map((e) => Math.floor(e.start / 60)));
   const bisStunde = Math.max(18, ...zeiten.map((e) => Math.ceil(e.ende / 60)));
   const vonMinute = vonStunde * 60;
-  const hoehe = (bisStunde - vonStunde) * PIXEL_PRO_STUNDE;
-  const pixel = (minuten) => ((minuten - vonMinute) * PIXEL_PRO_STUNDE / 60).toFixed(1);
+  const hoehe = (bisStunde - vonStunde) * pixelProStunde;
+  const pixel = (minuten) => ((minuten - vonMinute) * pixelProStunde / 60).toFixed(1);
   const begrenze = (minuten) => Math.min(Math.max(minuten, vonMinute), bisStunde * 60);
 
-  let html = `<div class="raster-scroll"><div class="raster" style="--tage:${tage.length};--stunde:${PIXEL_PRO_STUNDE}px">`;
+  let html = `<div class="raster-scroll"><div class="raster" style="--tage:${tage.length};--stunde:${pixelProStunde}px">`;
 
   // Kopfzeile
   html += '<div class="raster-ecke"></div>';
   for (const tag of tage) {
+    // Prüfungen ohne Uhrzeit (z. B. Abgabefristen) stehen im Tageskopf
+    const ohneZeit = pruefungen.filter((p) => p.ohneZeit && p.wochentag === tag.wochentag);
     html += `<div class="raster-kopf${tag.frei ? ' frei' : ''}">${escapeHtml(tag.titel)}` +
-      (tag.frei ? `<small>${escapeHtml(tag.frei)}</small>` : '') + '</div>';
+      (tag.frei ? `<small>${escapeHtml(tag.frei)}</small>` : '') +
+      ohneZeit.map((p) => `<small class="kopf-pruefung">${escapeHtml(p.titel + ' ' + p.zeile2)}</small>`).join('') + '</div>';
   }
 
   // Zeitachse
@@ -206,6 +230,10 @@ function rasterHtml(tage, eintraege, geblockt) {
   // Tagesspalten
   for (const tag of tage) {
     html += `<div class="tag-spalte${tag.frei ? ' frei' : ''}" style="height:${hoehe}px">`;
+    // Stundenlinien als eigene Elemente (sehen auch im PDF sauber aus)
+    for (let stunde = vonStunde + 1; stunde < bisStunde; stunde++) {
+      html += `<div class="stundenlinie" style="top:${pixel(stunde * 60)}px"></div>`;
+    }
 
     for (const g of geblockt.filter((g) => g.wochentag === tag.wochentag)) {
       const oben = pixel(begrenze(g.start));
@@ -230,6 +258,18 @@ function rasterHtml(tage, eintraege, geblockt) {
           <span>${escapeHtml(e.zeile2)}</span>
           <span>${escapeHtml(e.zeile3)}</span>
           ${e.hinweis ? `<em>${escapeHtml(e.hinweis)}</em>` : ''}
+        </div>`;
+    }
+
+    // Prüfungen mit Uhrzeit: volle Breite, über Vorlesungen und geblockten Zeiten
+    for (const p of mitZeit.filter((p) => p.wochentag === tag.wochentag)) {
+      const titel = [p.titel, p.zeile2, p.zeile3].join('\n');
+      html += `<div class="termin-block pruefung-block" title="${escapeHtml(titel)}"
+          data-aktion="termin-info" data-info="${escapeHtml(titel)}"
+          style="top:${pixel(p.start)}px;height:${pixel(p.ende) - pixel(p.start)}px;left:0;width:100%;--farbe:${escapeHtml(p.farbe)}">
+          <strong>${escapeHtml(p.titel)}</strong>
+          <span>${escapeHtml(p.zeile2)}</span>
+          <span>${escapeHtml(p.zeile3)}</span>
         </div>`;
     }
     html += '</div>';

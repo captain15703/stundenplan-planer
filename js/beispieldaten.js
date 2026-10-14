@@ -2,7 +2,8 @@
    beispieldaten.js – fachneutrale Beispieldaten zum Ausprobieren.
    Sie zeigen alle Funktionen: Pflicht- und Wahlmodule, Übungsgruppen
    als Alternativen, 14-tägige Termine, Blockseminar, Termine nur in der
-   ersten Semesterhälfte, geblockte Zeiten mit Puffer und Ferien.
+   ersten Semesterhälfte, geblockte Zeiten mit Puffer, Ferien und
+   Prüfungstermine (inkl. einer Überschneidung und eines Wiederholungstermins).
    ===================================================================== */
 
 'use strict';
@@ -19,8 +20,11 @@ function beispieldatenErzeugen() {
   const option = (name, termine, aktiv = true) => ({ id: id('opt'), name, aktiv, termine });
   const veranstaltung = (typ, titel, optionen) => ({ id: id('va'), typ, titel, aktiv: true, optionen });
   const modul = (felder, veranstaltungen) => ({
-    id: id('modul'), nummer: '', dozent: '', pruefungsform: '', link: '', notizen: '',
+    id: id('modul'), nummer: '', dozent: '', pruefungsform: '', link: '', notizen: '', pruefungen: [],
     aktiv: true, ...felder, veranstaltungen,
+  });
+  const pruefung = (bezeichnung, datum, von, bis, raum, wiederholung = false) => ({
+    id: id('pruefung'), bezeichnung, datum, von, bis, raum, wiederholung,
   });
 
   return {
@@ -39,6 +43,10 @@ function beispieldatenErzeugen() {
         dozent: 'Prof. Dr. Anna Beispiel', pruefungsform: 'Klausur (90 min)',
         link: 'https://example.org/modulhandbuch/m-01',
         notizen: 'Übungsgruppe bis 2. Vorlesungswoche wählen.',
+        pruefungen: [
+          pruefung('Klausur', '2027-02-08', '10:00', '11:30', 'Hörsaal A'),
+          pruefung('Klausur', '2027-04-12', '10:00', '11:30', 'Hörsaal A', true),
+        ],
       }, [
         veranstaltung('Vorlesung', '', [option('', [termin(1, '10:00', '12:00', 'Hörsaal A')])]),
         veranstaltung('Übung', '', [
@@ -52,6 +60,7 @@ function beispieldatenErzeugen() {
         name: 'Wissenschaftliches Schreiben', nummer: 'M-02', ects: 4, pflicht: true, farbe: '#f28e2b',
         dozent: 'Dr. Ben Muster', pruefungsform: 'Hausarbeit',
         notizen: 'Findet nur in der ersten Semesterhälfte statt.',
+        pruefungen: [pruefung('Abgabe Hausarbeit', '2027-03-15', '', '', '')],
       }, [
         veranstaltung('Seminar', '', [
           option('', [termin(3, '12:00', '14:00', 'Seminarraum 4', { ende: '2026-12-04' })]),
@@ -61,6 +70,7 @@ function beispieldatenErzeugen() {
       modul({
         name: 'Datenanalyse', nummer: 'W-11', ects: 6, pflicht: false, farbe: '#59a14f',
         dozent: 'Prof. Dr. Clara Probe', pruefungsform: 'Projektarbeit',
+        pruefungen: [pruefung('Projektpräsentation', '2027-02-10', '14:00', '16:00', 'PC-Pool')],
       }, [
         veranstaltung('Vorlesung', '', [option('', [termin(4, '10:00', '12:00', 'Hörsaal B')])]),
         // Zwei Übungsgruppen im selben Raum, aber in wechselnden Wochen
@@ -73,7 +83,8 @@ function beispieldatenErzeugen() {
       modul({
         name: 'Projektmanagement', nummer: 'W-12', ects: 5, pflicht: false, farbe: '#e15759',
         dozent: 'Dana Test', pruefungsform: 'Präsentation',
-        notizen: 'Blockseminar: jeweils Freitagnachmittag und Samstag.',
+        notizen: 'Blockseminar: jeweils Freitagnachmittag und Samstag. Die Präsentation liegt im letzten Blocktermin.',
+        pruefungen: [pruefung('Präsentation', '2026-12-12', '14:00', '15:30', 'Raum 0.12')],
       }, [
         veranstaltung('Seminar', 'Blockseminar', [
           option('', [
@@ -98,6 +109,8 @@ function beispieldatenErzeugen() {
       modul({
         name: 'Statistik II', nummer: 'W-14', ects: 6, pflicht: false, farbe: '#76b7b2',
         dozent: 'Prof. Dr. Felix Muster', pruefungsform: 'Klausur (120 min)',
+        notizen: 'Klausur überschneidet sich mit der Präsentation in Datenanalyse – beide Module werden nie zusammen belegt.',
+        pruefungen: [pruefung('Klausur', '2027-02-10', '15:00', '17:00', 'Hörsaal C')],
       }, [
         // Eine Vorlesung mit zwei Terminen: dienstags wöchentlich, freitags 14-tägig
         veranstaltung('Vorlesung', '', [option('', [
@@ -113,6 +126,7 @@ function beispieldatenErzeugen() {
       modul({
         name: 'Ethik in der Praxis', nummer: 'W-15', ects: 4, pflicht: false, farbe: '#edc948',
         dozent: 'Dr. Greta Muster', pruefungsform: 'Portfolio',
+        pruefungen: [pruefung('Abgabe Portfolio', '2027-02-09', '', '', '')],
       }, [
         veranstaltung('Seminar', '', [
           option('Gruppe 1', [termin(1, '08:00', '10:00', 'R 2.11')]),
@@ -124,6 +138,7 @@ function beispieldatenErzeugen() {
         name: 'Digitale Kommunikation', nummer: 'W-16', ects: 5, pflicht: false, farbe: '#9c755f',
         dozent: 'Hanna Probe', pruefungsform: 'Projektbericht',
         link: 'https://example.org/lernplattform/w-16',
+        pruefungen: [pruefung('Projektbericht', '2027-03-01', '', '', '')],
       }, [
         veranstaltung('Seminar', '', [
           option('Gruppe Di', [termin(2, '16:00', '18:00', 'Medienlabor')]),

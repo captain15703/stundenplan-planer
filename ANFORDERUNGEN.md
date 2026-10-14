@@ -25,6 +25,15 @@ Web-App zur Planung des Stundenplans im Masterstudium.
 12. **Export** einer Variante als `.ics`-Datei für Google Kalender (Zeitzone Europe/Berlin, Wiederholungen und Zeiträume korrekt).
 13. **Backup:** alle Daten als JSON exportieren und wieder importieren.
 
+### Erweiterungen
+
+14. **Prüfungstermine** pro Modul eintragen (mehrere möglich, z. B. Klausur und Abgabe; Uhrzeit optional; Wiederholungstermine markierbar):
+    - Eine Prüfung hat Vorrang vor Vorlesungen, Arbeit und anderen geblockten Zeiten.
+    - Überschneiden sich die Prüfungen zweier Module wirklich, werden diese Module nicht zusammen belegt.
+    - Prüfungen am selben Tag oder an aufeinanderfolgenden Tagen ergeben einen Hinweis.
+    - Wiederholungstermine werden nicht geprüft.
+15. **Druckansicht / PDF** einer Variante: Wochenraster, Prüfungsplan sowie Module und Termine.
+
 ## Präzisierungen (abgestimmt vor der Umsetzung)
 
 - **Pflicht- und Wahlmodule:** Jedes Modul ist als Pflicht oder Wahl markiert. Pflichtmodule sind in jeder Variante enthalten, Wahlmodule dürfen fehlen. Die ECTS-Summe kann sich deshalb je Variante unterscheiden. Das ECTS-Ziel wirkt

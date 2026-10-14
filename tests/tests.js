@@ -623,6 +623,122 @@ test('Backup: ungültige Dateien werden abgelehnt', () => {
   wahr(pruefeBackup(JSON.stringify({ app: BACKUP_KENNUNG, version: DATEN_VERSION + 1, daten: {} })).fehler, 'neuere Version');
 });
 
+/* ---------- Prüfungen ---------- */
+
+const P = (datum, von, bis, extra = {}) => ({ id: tId('p'), bezeichnung: 'Klausur', datum, von, bis, raum: '', wiederholung: false, ...extra });
+const mitPruefungen = (modul, pruefungen) => ({ ...modul, pruefungen });
+
+test('Prüfungsplan: Überschneidung, selber Tag, Folgetag, Wiederholung', () => {
+  setzeDaten({ module: [
+    mitPruefungen(M('A', 5, true, []), [P('2027-02-10', '10:00', '12:00')]),
+    mitPruefungen(M('B', 5, false, []), [P('2027-02-10', '11:00', '13:00')]), // überschneidet sich mit A
+    mitPruefungen(M('C', 5, false, []), [P('2027-02-10', '14:00', '15:00')]), // selber Tag, ohne Überschneidung
+    mitPruefungen(M('D', 5, false, []), [P('2027-02-11', '', '', { bezeichnung: 'Abgabe' })]), // Folgetag, ohne Uhrzeit
+    mitPruefungen(M('E', 5, false, []), [P('2027-02-10', '10:30', '11:30', { wiederholung: true })]), // wird nicht geprüft
+  ] });
+  const plan = pruefungsplan(daten.module);
+  gleich(plan.eintraege.length, 5, 'Einträge:');
+  const arten = plan.hinweise.map((h) => h.art).sort();
+  gleich(arten, ['folgetag', 'folgetag', 'folgetag', 'gleicherTag', 'gleicherTag', 'kollision'], 'Hinweise:');
+  wahr(pruefungsKollision(daten.module[0], daten.module[1]) !== null, 'A/B überschneiden sich');
+  gleich(pruefungsKollision(daten.module[0], daten.module[2]), null, 'A/C nicht');
+  gleich(pruefungsKollision(daten.module[0], daten.module[4]), null, 'Wiederholungstermin zählt nicht');
+  const ohneZeit = [P('2027-02-11', '', ''), P('2027-02-11', '09:00', '17:00')];
+  gleich(pruefungenUeberschneidenSich(ohneZeit[0], ohneZeit[1]), false, 'ohne Uhrzeit → keine Überschneidung');
+});
+
+test('Suche: Module mit überschneidenden Prüfungen werden nie zusammen belegt', () => {
+  setzeDaten({
+    module: [
+      mitPruefungen(M('Pflicht', 6, true, [V('Vorlesung', [O('', [T(1, '10:00', '12:00')])])]), [P('2027-02-08', '10:00', '12:00')]),
+      mitPruefungen(M('Wahl 1', 5, false, [V('Seminar', [O('', [T(2, '10:00', '12:00')])])]), [P('2027-02-10', '10:00', '12:00')]),
+      mitPruefungen(M('Wahl 2', 5, false, [V('Seminar', [O('', [T(3, '10:00', '12:00')])])]), [P('2027-02-10', '11:00', '13:00')]),
+      mitPruefungen(M('Wahl 3', 5, false, [V('Seminar', [O('', [T(4, '10:00', '12:00')])])]), [P('2027-02-08', '11:00', '12:30')]),
+    ],
+    einstellungen: { ectsZiel: 0 },
+  });
+  const erg = berechneVarianten();
+  const namen = erg.varianten.map((v) => v.module.map((m) => m.name).sort().join('+'));
+  wahr(!namen.some((n) => n.includes('Wahl 1') && n.includes('Wahl 2')), 'Wahl 1 und 2 nie zusammen');
+  wahr(!namen.some((n) => n.includes('Wahl 3')), 'Wahl 3 kollidiert mit dem Pflichtmodul und fehlt immer');
+  gleich(erg.anzahl, 3, 'Pflicht, +W1, +W2:');
+  wahr(erg.diagnose.some((d) => d.art === 'info' && d.text.includes('„Wahl 3“ wird nicht belegt')), 'Hinweis zu Wahl 3');
+  wahr(erg.diagnose.some((d) => d.art === 'info' && d.text.includes('nie zusammen belegt')), 'Hinweis zu Wahl 1/2');
+});
+
+test('Suche: überschneidende Prüfungen zweier Pflichtmodule werden erklärt', () => {
+  setzeDaten({
+    module: [
+      mitPruefungen(M('A', 6, true, []), [P('2027-02-08', '10:00', '12:00')]),
+      mitPruefungen(M('B', 6, true, []), [P('2027-02-08', '11:00', '13:00')]),
+    ],
+    einstellungen: { ectsZiel: 0 },
+  });
+  const erg = berechneVarianten();
+  gleich(erg.anzahl, 0);
+  wahr(erg.diagnose.some((d) => d.art === 'fehler' && d.text.includes('Pflichtmodule „A“ und „B“')), 'Fehler-Hinweis erwartet');
+});
+
+test('Prüfungen haben Vorrang vor Vorlesungen und geblockten Zeiten', () => {
+  setzeDaten({
+    module: [
+      // Prüfung liegt mitten in der eigenen Vorlesung, im Nebenjob und in der Vorlesung des anderen Moduls
+      mitPruefungen(M('A', 6, true, [V('Vorlesung', [O('', [T(1, '10:00', '12:00')])])]), [P('2026-10-19', '10:00', '16:00')]),
+      M('B', 6, true, [V('Vorlesung', [O('', [T(1, '12:00', '14:00')])])]),
+    ],
+    geblockteZeiten: [{ name: 'Job', art: 'woechentlich', wochentag: 1, von: '14:00', bis: '18:00' }],
+    einstellungen: { ectsZiel: 0 },
+  });
+  gleich(berechneVarianten().anzahl, 1, 'Variante trotz Prüfung über Vorlesung und Job:');
+});
+
+test('Favorit meldet Prüfungen, die sich inzwischen überschneiden', () => {
+  setzeDaten({ module: [
+    mitPruefungen(M('A', 6, true, []), [P('2027-02-08', '10:00', '12:00')]),
+    mitPruefungen(M('B', 6, false, []), [P('2027-02-09', '10:00', '12:00')]),
+  ] });
+  const ids = daten.module.map((m) => m.id);
+  gleich(varianteAusAuswahl(ids, {}).probleme, [], 'vorher keine Probleme:');
+  daten.module[1].pruefungen[0].datum = '2027-02-08';
+  wahr(varianteAusAuswahl(ids, {}).probleme.some((p) => p.startsWith('Prüfungen überschneiden sich')), 'Problem erwartet');
+});
+
+test('ICS: Prüfungen als Einzeltermine (mit Uhrzeit und ganztägig)', () => {
+  setzeDaten({ module: [mitPruefungen({ ...M('Statistik', 6, true, []), nummer: 'W-14' }, [
+    P('2027-02-10', '15:00', '17:00', { raum: 'Hörsaal C' }),
+    P('2027-03-15', '', '', { bezeichnung: 'Abgabe' }),
+    P('2027-04-12', '10:00', '11:00', { wiederholung: true }),
+  ])] });
+  const ics = erzeugeIcs([], 'Test', daten.module);
+  wahr(ics.includes('SUMMARY:Prüfung: Statistik – Klausur\r\n'), 'Titel Klausur');
+  wahr(ics.includes('DTSTART;TZID=Europe/Berlin:20270210T150000') && ics.includes('DTEND;TZID=Europe/Berlin:20270210T170000'), 'Uhrzeit');
+  wahr(ics.includes('DTSTART;VALUE=DATE:20270315') && ics.includes('DTEND;VALUE=DATE:20270316'), 'ganztägig');
+  wahr(ics.includes('(Wiederholungstermin)'), 'Wiederholungstermin gekennzeichnet');
+  wahr(ics.includes('LOCATION:Hörsaal C'), 'Raum');
+  gleich((ics.match(/BEGIN:VEVENT/g) || []).length, 3, 'Anzahl:');
+});
+
+test('Ältere Daten ohne Prüfungen werden ergänzt', () => {
+  const geladen = normalisiereDaten({ module: [{ name: 'Alt', veranstaltungen: [] }] });
+  gleich(geladen.module[0].pruefungen, []);
+});
+
+test('Beispieldaten: keine Variante mit überschneidenden Prüfungen', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  daten.einstellungen.maxVarianten = 100;
+  daten.einstellungen.nurZielErreicht = false;
+  const erg = berechneVarianten();
+  wahr(erg.varianten.length > 0, 'Varianten erwartet');
+  for (const v of erg.varianten) {
+    for (let i = 0; i < v.module.length; i++) {
+      for (let j = i + 1; j < v.module.length; j++) {
+        gleich(pruefungsKollision(v.module[i], v.module[j]), null, v.module[i].name + '/' + v.module[j].name + ':');
+      }
+    }
+  }
+  wahr(erg.diagnose.some((d) => d.text.includes('„Datenanalyse“ und „Statistik II“')), 'Hinweis zur Überschneidung');
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {
