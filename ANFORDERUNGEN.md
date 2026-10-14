@@ -34,7 +34,7 @@ Web-App zur Planung des Stundenplans im Masterstudium.
 - **Auswahlgruppe:** Eine Lehrveranstaltung hat eine oder mehrere *Optionen* (z. B. Gruppe A, B, C), von denen genau eine belegt wird. Eine Option kann aus mehreren Terminen bestehen (z. B. Di und Do).
 - **Aktivieren/Deaktivieren** ist auf Ebene von Modul, Lehrveranstaltung und einzelner Option möglich.
 - **Überschneidungen** werden kalendergenau geprüft. 14-tägige Termine in wechselnden Wochen und Termine mit getrennten Zeiträumen kollidieren nicht. Direkt aneinander anschließende Termine (z. B. 10–12 und 12–14 Uhr) gelten nicht als Überschneidung.
-- **Kennzahlen** werden über alle Semesterwochen mit Terminen gemittelt (Ø Uni-Tage pro Woche, Ø Freistunden pro Woche, Ø Beginn pro Uni-Tag). Lücken bis 15 Minuten zählen nicht als Freistunde.
+- **Kennzahlen** (Ø Uni-Tage pro Woche, Ø Freistunden pro Woche, Ø Beginn pro Uni-Tag) beziehen sich auf eine *normale Vorlesungswoche*: Gemittelt wird über alle Wochen ohne vorlesungsfreie Tage und ohne angebrochene Wochen am Semesteranfang und -ende. Lücken bis 15 Minuten zählen nicht als Freistunde. Blocktermine werden separat als Anzahl Blocktage ausgewiesen; bei gleich vielen Uni-Tagen gewinnt die Variante mit weniger Blocktagen.
 - **Beispieldaten** (fachneutral) lassen sich per Klick laden und zeigen alle Funktionen.
 
 ## Vorgehen

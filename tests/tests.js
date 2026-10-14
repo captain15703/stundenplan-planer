@@ -288,22 +288,70 @@ test('Unmögliches Pflichtmodul wird erklärt', () => {
 
 /* ---------- Kennzahlen & Sortierung ---------- */
 
-test('Kennzahlen: Uni-Tage, Freistunden, Beginn', () => {
-  setzeDaten({});
-  const info = {
-    vorkommen: [
-      ...vorkommenVonTermin(T(1, '08:00', '10:00', { ende: '2026-10-25' }), new Set()),
-      ...vorkommenVonTermin(T(1, '12:00', '14:00', { ende: '2026-10-25' }), new Set()),
-      ...vorkommenVonTermin(T(1, '14:10', '15:00', { ende: '2026-10-25' }), new Set()), // Lücke 10 min zählt nicht
-      ...vorkommenVonTermin(T(3, '10:00', '12:00', { ende: '2026-10-18' }), new Set()), // nur in Woche 1
-    ],
-  };
-  const k = berechneKennzahlen([info]);
-  gleich(k.wochen, 2);
-  gleich(k.tageProWoche, 1.5, 'Ø Tage (2 + 1) / 2:');
-  gleich(k.freistundenProWoche, 2, 'Ø Freistunden:');
-  gleich(Math.round(k.beginn), Math.round((480 + 480 + 600) / 3), 'Ø Beginn:');
-  gleich(k.fruehesterBeginn, 480);
+// OptionInfos (wie in der Suche) für die erste Gruppe jeder Veranstaltung
+function infosAusDaten() {
+  const frei = vorlesungsfreieTage();
+  return daten.module.flatMap((m) => m.veranstaltungen.map((v) => erstelleOptionInfo(m, v, v.optionen[0], frei)));
+}
+const FERIEN = [{ name: 'Dies', von: '2026-11-18', bis: '2026-11-18' }, { name: 'Weihnachten', von: '2026-12-21', bis: '2027-01-06' }];
+// Mo, Mi (mit 2 h Lücke) und Do – also 3 feste Uni-Tage
+const DREI_TAGE = () => [T(1, '10:00', '12:00'), T(3, '10:00', '12:00'), T(3, '14:00', '16:00'), T(4, '10:00', '12:00')];
+
+test('Kennzahlen: 3 feste Uni-Tage bleiben 3 – auch mit Feiertagen und Ferien', () => {
+  setzeDaten({ module: [M('A', 5, true, [V('Vorlesung', [O('', [...DREI_TAGE(), T(3, '16:10', '17:00')])])])], vorlesungsfrei: FERIEN });
+  const k = berechneKennzahlen(infosAusDaten());
+  gleich(k.wochen, 13, 'normale Wochen (17 minus Dies-Woche und 3 Ferienwochen):');
+  gleich(k.tageProWoche, 3, 'Ø Uni-Tage:');
+  gleich(k.freistundenProWoche, 2, 'Ø Freistunden (Lücke 10 min zählt nicht):');
+  gleich([k.beginn, k.fruehesterBeginn, k.blockTage], [600, 600, 0], 'Beginn/Blocktage:');
+});
+
+test('Kennzahlen: 14-tägige Termine ergeben einen halben Tag', () => {
+  setzeDaten({ module: [M('A', 5, true, [V('Vorlesung', [O('', [...DREI_TAGE(), T(5, '10:00', '12:00', { rhythmus: 'zweiwoechentlich' })])])])] });
+  const k = berechneKennzahlen(infosAusDaten());
+  wahr(Math.abs(k.tageProWoche - 3.5) < 0.1, 'etwa 3,5 erwartet, erhalten ' + k.tageProWoche);
+});
+
+test('Kennzahlen: Blocktermine zählen separat', () => {
+  setzeDaten({ module: [M('A', 5, true, [
+    V('Vorlesung', [O('', DREI_TAGE())]),
+    V('Seminar', [O('', [T(6, '09:00', '16:00', { rhythmus: 'block', daten: ['2026-11-14', '2026-11-28'] }),
+      T(5, '14:00', '18:00', { rhythmus: 'block', daten: ['2026-11-13'] })])]),
+  ])], vorlesungsfrei: FERIEN });
+  const k = berechneKennzahlen(infosAusDaten());
+  gleich([k.tageProWoche, k.freistundenProWoche, k.blockTage], [3, 2, 3]);
+});
+
+test('Kennzahlen: angebrochene Wochen am Semesteranfang zählen nicht', () => {
+  setzeDaten({ module: [M('A', 5, true, [V('Vorlesung', [O('', DREI_TAGE())])])], einstellungen: { semesterStart: '2026-10-14' } });
+  const k = berechneKennzahlen(infosAusDaten());
+  gleich([k.wochen, k.tageProWoche], [16, 3], 'Semesterbeginn Mittwoch:');
+});
+
+test('Kennzahlen: ohne Vorlesungszeitraum zählt die Spanne der Termine', () => {
+  const termine = DREI_TAGE().map((t) => ({ ...t, start: '2026-10-12', ende: '2026-11-30' }));
+  setzeDaten({ module: [M('A', 5, true, [V('Vorlesung', [O('', termine)])])], einstellungen: { semesterStart: '', semesterEnde: '' } });
+  const k = berechneKennzahlen(infosAusDaten());
+  gleich([k.wochen, k.tageProWoche, k.freistundenProWoche], [7, 3, 2]);
+});
+
+test('Kennzahlen: ohne normale Woche wird über Wochen mit Terminen gemittelt', () => {
+  setzeDaten({ module: [M('A', 5, true, [V('Vorlesung', [O('', DREI_TAGE())])])], einstellungen: { semesterStart: '2026-10-12', semesterEnde: '2026-10-14' } });
+  const k = berechneKennzahlen(infosAusDaten());
+  gleich([k.wochen, k.tageProWoche], [1, 2], 'nur Mo und Mi im Zeitraum:');
+});
+
+test('Sortierung: bei gleichen Uni-Tagen gewinnt die Variante ohne Blocktage', () => {
+  setzeDaten({
+    module: [M('A', 6, true, [V('Übung', [
+      O('mit Block', [T(1, '10:00', '12:00'), T(2, '10:00', '12:00'), T(6, '09:00', '16:00', { rhythmus: 'block', daten: ['2026-11-14'] })]),
+      O('ohne Block', [T(1, '10:00', '12:00'), T(2, '10:00', '12:00')]),
+    ])])],
+    einstellungen: { ectsZiel: 0, prioritaeten: [{ schluessel: 'tage', aktiv: true }] },
+  });
+  const erg = berechneVarianten();
+  gleich(erg.optionen[erg.varianten[0].optionen[0]].option.name, 'ohne Block');
+  gleich(erg.varianten.map((v) => v.kennzahlen.blockTage), [0, 1]);
 });
 
 test('Sortierung nach Prioritäten', () => {
