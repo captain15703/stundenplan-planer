@@ -217,10 +217,22 @@ function diagnoseHtml(erg) {
 /* ---------- Liste und Detailansicht ---------- */
 
 function kennzahlenKurz(variante) {
-  const k = variante.kennzahlen;
-  return `${formatZahl(variante.ects)} ECTS · Ø ${formatZahl(k.tageProWoche)} Tage · ` +
-    `Ø ${formatZahl(k.freistundenProWoche)} h frei` + (k.beginn !== null ? ` · Ø ab ${minutenZuZeit(Math.round(k.beginn))}` : '');
+  return formatZahl(variante.ects) + ' ECTS · ' + kennzahlenText(variante.kennzahlen);
 }
+
+// "Ø 3 Tage + 6 Blocktage · Ø 2 h frei · Ø ab 10:00" (auch für Favoriten)
+function kennzahlenText(k) {
+  return `Ø ${formatZahl(k.tageProWoche)} Tage` + (k.blockTage ? ` + ${blocktageText(k.blockTage)}` : '') +
+    ` · Ø ${formatZahl(k.freistundenProWoche)} h frei` + (k.beginn !== null ? ` · Ø ab ${minutenZuZeit(Math.round(k.beginn))}` : '');
+}
+
+function blocktageText(anzahl) {
+  return anzahl + (anzahl === 1 ? ' Blocktag' : ' Blocktage');
+}
+
+// Erklärt, worauf sich die Durchschnittswerte beziehen
+const KENNZAHLEN_HINWEIS = 'Durchschnitt pro normaler Vorlesungswoche (ohne Wochen mit Feiertagen oder Ferien ' +
+  'und ohne angebrochene Wochen am Semesteranfang/-ende). Blocktermine sind separat gezählt.';
 
 function variantenEintragHtml(variante, index) {
   return `
@@ -281,11 +293,13 @@ function kennzahlenHtml(ects, ziel, k) {
   return `
     <div class="kennzahlen">
       <div class="kachel ${zielErreicht ? 'gut' : 'schlecht'}"><span class="wert">${formatZahl(ects)}</span><span class="name">ECTS (Ziel ${formatZahl(ziel)})</span></div>
-      <div class="kachel"><span class="wert">${formatZahl(k.tageProWoche)}</span><span class="name">Ø Uni-Tage/Woche</span></div>
+      <div class="kachel"><span class="wert">${formatZahl(k.tageProWoche)}</span>
+        <span class="name">Ø Uni-Tage/Woche${k.blockTage ? '<br>+ ' + blocktageText(k.blockTage) + ' im Semester' : ''}</span></div>
       <div class="kachel"><span class="wert">${formatZahl(k.freistundenProWoche)} h</span><span class="name">Ø Freistunden/Woche</span></div>
       <div class="kachel"><span class="wert">${k.beginn !== null ? minutenZuZeit(Math.round(k.beginn)) : '–'}</span>
         <span class="name">Ø Beginn${k.fruehesterBeginn !== null ? ' (frühester ' + minutenZuZeit(k.fruehesterBeginn) + ')' : ''}</span></div>
-    </div>`;
+    </div>
+    <p class="hilfe kennzahlen-hinweis">${KENNZAHLEN_HINWEIS}</p>`;
 }
 
 // Liste der belegten Module/Veranstaltungen und der nicht belegten Wahlmodule

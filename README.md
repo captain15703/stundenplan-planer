@@ -52,11 +52,11 @@ Hier trägst du Zeiten ein, in denen keine Uni stattfinden darf, z. B. Arbeit od
 - **ECTS-Ziel**: Mit dem Häkchen „nur Varianten, die das Ziel erreichen“ siehst du nur Varianten, die mindestens so viele ECTS haben.
 - **Sortierung**: Ordne die Kriterien mit ↑/↓ nach Wichtigkeit und schalte nicht gewünschte Kriterien ab.
   - *ECTS nah am Ziel*: möglichst genau die Zielzahl, Varianten unter dem Ziel kommen immer nach hinten
-  - *Wenigste Uni-Tage*: Ø Tage pro Woche mit mindestens einem Termin
+  - *Wenigste Uni-Tage*: Ø Tage pro Woche mit mindestens einem Termin; bei Gleichstand gewinnt die Variante mit weniger Blocktagen
   - *Wenigste Freistunden*: Ø Stunden pro Woche in Lücken zwischen Terminen am selben Tag; Lücken bis 15 Minuten zählen nicht
   - *Spätester Beginn*: Ø Uhrzeit des ersten Termins pro Uni-Tag
 
-  Alle Kennzahlen werden kalendergenau über das ganze Semester gemittelt. 14-tägige Termine, Blocktermine und Ferien sind also korrekt berücksichtigt.
+  Die Durchschnitte beziehen sich auf eine **normale Vorlesungswoche**: Gemittelt wird über alle Wochen ohne Feiertage oder Ferien. Angebrochene Wochen am Semesteranfang und -ende zählen ebenfalls nicht mit. Drei feste Uni-Tage ergeben so genau 3. 14-tägige Termine oder Kurse nur in einem Teil des Semesters ergeben einen ehrlichen Mittelwert (z. B. 2,5). **Blocktermine** zählen nicht in die Wochenwerte, sie stehen separat als „+ 6 Blocktage“ daneben.
 - **Anzahl anzeigen**: begrenzt die Liste auf die besten 5 bis 100 Varianten.
 - **Wochenansicht**: In der *Regelwoche* stehen alle wiederkehrenden Termine. 14-tägige Termine sind schraffiert, Blocktermine stehen als Liste darunter. Über die Auswahl kannst du auch jede **konkrete Kalenderwoche** ansehen. Geblockte Zeiten erscheinen grau, ihr Puffer heller schraffiert. Ein Klick (oder Antippen) auf einen Termin zeigt alle Details.
 - Findet der Planer keine Variante, nennt er den Grund, z. B. zwei feste Pflichttermine, die sich überschneiden. Unter „… Termine wurden ausgeschlossen“ steht, welche Gruppen mit geblockten Zeiten kollidieren.

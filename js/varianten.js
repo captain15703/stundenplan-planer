@@ -37,7 +37,12 @@ function erstelleOptionInfo(modul, veranstaltung, option, freieTage) {
     for (const v of vorkommenVonTermin(termin, freieTage)) vorkommen.push({ ...v, termin });
   }
   vorkommen.sort((a, b) => a.tag - b.tag || a.start - b.start);
-  return { modul, veranstaltung, option, vorkommen, zahlen: alsZahlen(vorkommen) };
+  return {
+    modul, veranstaltung, option, vorkommen,
+    // Für die Kennzahlen: regelmäßige Termine (als Zahlen) und Blocktermine getrennt
+    zahlen: alsZahlen(vorkommen.filter((v) => v.termin.rhythmus !== 'block')),
+    blockTage: [...new Set(vorkommen.filter((v) => v.termin.rhythmus === 'block').map((v) => v.tag))],
+  };
 }
 
 /* Für die Kennzahlen müssen sehr oft alle Vorkommen einer Variante
@@ -78,14 +83,61 @@ function optionBezeichnung(info) {
     (info.option.name ? ' (' + info.option.name + ')' : '');
 }
 
-// Kennzahlen einer Variante, kalendergenau über das ganze Semester:
-// Für jede Woche mit Terminen werden Uni-Tage und Freistunden gezählt
-// und dann der Durchschnitt pro Woche gebildet.
-function berechneKennzahlen(optionInfos) {
-  // Alle Vorkommen (als Zahlen, siehe oben) in den Puffer kopieren und sortieren
+// "Normale Vorlesungswochen": Wochen, deren Montag bis Freitag komplett im
+// Vorlesungszeitraum liegen und die keinen vorlesungsfreien Tag enthalten.
+// Nur über diese Wochen werden Uni-Tage und Freistunden gemittelt – sonst
+// würden Feiertags- und angebrochene Wochen den Durchschnitt verfälschen
+// (aus 3 festen Uni-Tagen würden z. B. "2,8").
+// Ergebnis: Menge (Set) der Montage als Tagnummern.
+function normaleVorlesungswochen() {
+  const e = daten.einstellungen;
+  let vonTag = datumZuTagNr(e.semesterStart);
+  let bisTag = datumZuTagNr(e.semesterEnde);
+
+  // Ohne Vorlesungszeitraum: Spanne aller wiederkehrenden Termine
+  if (vonTag === null || bisTag === null) {
+    const tage = [];
+    for (const modul of daten.module) {
+      for (const veranstaltung of modul.veranstaltungen) {
+        for (const option of veranstaltung.optionen) {
+          for (const termin of option.termine) {
+            if (termin.rhythmus === 'block') continue;
+            const vorkommen = vorkommenVonTermin(termin, new Set());
+            if (vorkommen.length) tage.push(vorkommen[0].tag, vorkommen[vorkommen.length - 1].tag);
+          }
+        }
+      }
+    }
+    if (tage.length === 0) return new Set();
+    vonTag = Math.min(...tage);
+    bisTag = Math.max(...tage);
+  }
+
+  const freieTage = vorlesungsfreieTage();
+  const wochen = new Set();
+  for (let montag = montagVon(vonTag); montag <= bisTag; montag += 7) {
+    if (montag < vonTag || montag + 4 > bisTag) continue; // angebrochene Woche
+    let frei = false;
+    for (let tag = montag; tag <= montag + 6; tag++) {
+      if (freieTage.has(tag)) frei = true;
+    }
+    if (!frei) wochen.add(montag);
+  }
+  return wochen;
+}
+
+// Kennzahlen einer Variante: Uni-Tage, Freistunden und Beginn werden
+// für jede normale Vorlesungswoche gezählt und dann pro Woche gemittelt.
+// Wochen ohne Termin zählen mit 0 Tagen mit – so ergeben z. B. 14-tägige
+// Termine oder Kurse nur in der ersten Semesterhälfte einen ehrlichen
+// Mittelwert. Blocktermine zählen nicht mit, sondern separat als "blockTage".
+function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen()) {
+  // Alle regelmäßigen Vorkommen (als Zahlen, siehe oben) in den Puffer kopieren und sortieren
   let anzahl = 0;
+  const blockTage = new Set();
   for (const info of optionInfos) {
-    const zahlen = info.zahlen || alsZahlen(info.vorkommen);
+    const zahlen = info.zahlen || alsZahlen(info.vorkommen.filter((v) => !v.termin || v.termin.rhythmus !== 'block'));
+    (info.blockTage || []).forEach((tag) => blockTage.add(tag));
     if (anzahl + zahlen.length > zahlenPuffer.length) {
       const groesser = new Float64Array((anzahl + zahlen.length) * 2);
       groesser.set(zahlenPuffer.subarray(0, anzahl));
@@ -96,6 +148,9 @@ function berechneKennzahlen(optionInfos) {
   }
   const alle = zahlenPuffer.subarray(0, anzahl).sort();
 
+  // Gibt es keine einzige normale Woche (z. B. sehr kurzer Zeitraum),
+  // wird wie früher über alle Wochen mit Terminen gemittelt.
+  const nurNormaleWochen = normaleWochen.size > 0;
   const wochen = new Set();
   let uniTage = 0;
   let lueckenMinuten = 0;
@@ -109,6 +164,7 @@ function berechneKennzahlen(optionInfos) {
     const tag = Math.floor(zahl / FAKTOR_TAG);
     const start = Math.floor(zahl / FAKTOR_START) % FAKTOR_START;
     const ende = zahl % FAKTOR_START;
+    if (nurNormaleWochen && !normaleWochen.has(montagVon(tag))) continue;
 
     if (tag !== aktuellerTag) {
       // erster Termin an einem neuen Tag
@@ -126,13 +182,14 @@ function berechneKennzahlen(optionInfos) {
     }
   }
 
-  const anzahlWochen = wochen.size || 1;
+  const anzahlWochen = (nurNormaleWochen ? normaleWochen.size : wochen.size) || 1;
   return {
-    wochen: wochen.size,
+    wochen: nurNormaleWochen ? normaleWochen.size : wochen.size, // Anzahl gemittelter Wochen
     tageProWoche: uniTage / anzahlWochen,
     freistundenProWoche: lueckenMinuten / 60 / anzahlWochen,
     beginn: uniTage ? beginnSumme / uniTage : null, // Ø Beginn in Minuten
     fruehesterBeginn,
+    blockTage: blockTage.size, // Tage mit Blockterminen im ganzen Semester
   };
 }
 
@@ -164,8 +221,8 @@ function vergleicheVarianten(a, b) {
       case 'ects':
         ergebnis = mitToleranz(ectsAbstand(a.ects, ziel) - ectsAbstand(b.ects, ziel), 0.01);
         break;
-      case 'tage':
-        ergebnis = mitToleranz(ka.tageProWoche - kb.tageProWoche, 0.05);
+      case 'tage': // bei gleich vielen Uni-Tagen gewinnt, wer weniger Blocktage hat
+        ergebnis = mitToleranz(ka.tageProWoche - kb.tageProWoche, 0.05) || Math.sign(ka.blockTage - kb.blockTage);
         break;
       case 'freistunden':
         ergebnis = mitToleranz(ka.freistundenProWoche - kb.freistundenProWoche, 0.05);
@@ -327,6 +384,7 @@ function berechneVarianten() {
   }
 
   const ectsPflicht = pflicht.reduce((summe, m) => summe + m.modul.ects, 0);
+  const normaleWochen = normaleVorlesungswochen(); // einmal für alle Varianten
   if (nurZiel && ectsPflicht + restWahlEcts[0] < ziel) {
     diagnose.push({
       art: 'fehler',
@@ -361,7 +419,7 @@ function berechneVarianten() {
   function varianteGefunden() {
     if (nurZiel && ects < ziel) return;
     ergebnis.anzahl++;
-    const kandidat = { ects, kennzahlen: berechneKennzahlen(gewaehlt.map((nummer) => optionen[nummer])) };
+    const kandidat = { ects, kennzahlen: berechneKennzahlen(gewaehlt.map((nummer) => optionen[nummer]), normaleWochen) };
     // In die Bestenliste einsortieren und nur die besten maxAnzahl behalten
     if (liste.length === maxAnzahl && vergleicheVarianten(kandidat, liste[liste.length - 1]) >= 0) return;
     kandidat.optionen = [...gewaehlt];

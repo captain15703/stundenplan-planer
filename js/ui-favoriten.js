@@ -61,8 +61,7 @@ function zeigeFavoritenTab() {
           <h3 class="karte-titel">${escapeHtml(favorit.name)}</h3>
         </div>
         <p class="farbpunkte">${a.module.map((m) => `<span class="farbpunkt" style="background:${escapeHtml(m.farbe)}" title="${escapeHtml(m.name)}"></span>`).join('')}</p>
-        <p class="klein gedimmt">${formatZahl(a.ects)} ECTS · Ø ${formatZahl(a.kennzahlen.tageProWoche)} Tage · Ø ${formatZahl(a.kennzahlen.freistundenProWoche)} h frei` +
-          `${a.kennzahlen.beginn !== null ? ' · Ø ab ' + minutenZuZeit(Math.round(a.kennzahlen.beginn)) : ''}<br>
+        <p class="klein gedimmt">${formatZahl(a.ects)} ECTS · ${kennzahlenText(a.kennzahlen)}<br>
           gespeichert am ${formatZeitpunkt(favorit.gespeichertAm)}</p>
         ${a.probleme.length ? `<div class="hinweis klein"><strong>Veraltet:</strong><ul>${a.probleme.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>` : ''}
         <div class="karte-aktionen">
@@ -90,6 +89,7 @@ function vergleichHtml(eintraege) {
   const zeilen = [
     { name: 'ECTS', wert: (a) => a.ects, text: (a) => formatZahl(a.ects), besser: (x, y) => ectsAbstand(x, ziel) - ectsAbstand(y, ziel) },
     { name: 'Ø Uni-Tage/Woche', wert: (a) => a.kennzahlen.tageProWoche, text: (a) => formatZahl(a.kennzahlen.tageProWoche), besser: (x, y) => x - y },
+    { name: 'Blocktage im Semester', wert: (a) => a.kennzahlen.blockTage, text: (a) => String(a.kennzahlen.blockTage), besser: (x, y) => x - y },
     { name: 'Ø Freistunden/Woche', wert: (a) => a.kennzahlen.freistundenProWoche, text: (a) => formatZahl(a.kennzahlen.freistundenProWoche) + ' h', besser: (x, y) => x - y },
     { name: 'Ø Beginn', wert: (a) => a.kennzahlen.beginn ?? MINUTEN_PRO_TAG, text: (a) => a.kennzahlen.beginn !== null ? minutenZuZeit(Math.round(a.kennzahlen.beginn)) : '–', besser: (x, y) => y - x },
     { name: 'Frühester Beginn', wert: (a) => a.kennzahlen.fruehesterBeginn ?? MINUTEN_PRO_TAG, text: (a) => a.kennzahlen.fruehesterBeginn !== null ? minutenZuZeit(a.kennzahlen.fruehesterBeginn) : '–', besser: (x, y) => y - x },
@@ -120,6 +120,7 @@ function vergleichHtml(eintraege) {
     <section class="karte vergleich">
       <h3>Vergleich</h3>
       ${tabelle}
+      <p class="hilfe">${KENNZAHLEN_HINWEIS}</p>
       <label class="feld wochen-wahl">Ansicht
         <select data-aktion="vergleich-woche">${optionenHtml(wochen, String(vergleichWoche))}</select>
       </label>
