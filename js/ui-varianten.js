@@ -289,6 +289,7 @@ function variantenDetailHtml() {
           <button class="knopf" data-aktion="variante-ics">📅 Kalender-Export (.ics)</button>
           <button class="knopf" data-aktion="variante-drucken" title="Im Druckdialog „Als PDF speichern“ wählen">🖨 Drucken / PDF</button>
           <button class="knopf" data-aktion="variante-teilen">🔗 Teilen</button>
+          <button class="knopf" data-aktion="variante-studienverlauf" title="Module dieser Variante in den Studienverlauf eintragen">🎓 In Studienverlauf</button>
         </div>
       </div>
       ${kennzahlenHtml(variante.ects, ziel, k)}

@@ -109,7 +109,7 @@ function leseBackupDatei(datei) {
     }
     const neu = ergebnis.daten;
     const frage = `Backup vom ${ergebnis.datum || 'unbekannten Datum'} einlesen?\n\n` +
-      `Enthalten: ${neu.module.length} Module, ${neu.geblockteZeiten.length} geblockte Zeiten, ${neu.favoriten.length} Favoriten.\n\n` +
+      `Enthalten: ${neu.module.length} Module, ${neu.geblockteZeiten.length} geblockte Zeiten, ${neu.favoriten.length} Favoriten, ${neu.studienverlauf.module.length} Module im Studienverlauf.\n\n` +
       'Deine aktuellen Daten werden dabei ersetzt.';
     if (!confirm(frage)) return;
     daten = neu;

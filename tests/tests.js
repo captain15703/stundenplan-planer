@@ -911,6 +911,56 @@ test('Wünsche: alte Daten bekommen leere Liste, Kriterium ist an', () => {
   gleich(geladen.einstellungen.prioritaeten.find((p) => p.schluessel === 'wuensche').aktiv, true);
 });
 
+/* ---------- Studienverlauf ---------- */
+
+test('Studienverlauf: ECTS je Bereich, Semester und Status', () => {
+  const verlauf = normalisiereStudienverlauf({
+    gesamtEcts: 120, semesterAnzahl: 4,
+    bereiche: [{ id: 'b1', name: 'Pflicht', sollEcts: 30 }, { id: 'b2', name: 'Wahl', sollEcts: 90 }],
+    module: [
+      { name: 'A', ects: 6, bereichId: 'b1', semester: 1, status: 'bestanden', note: '1,7' },
+      { name: 'B', ects: 4, bereichId: 'b1', semester: 1, status: 'bestanden', note: '2,3' },
+      { name: 'C', ects: 6, bereichId: 'b2', semester: 2, status: 'belegt' },
+      { name: 'D', ects: 5, bereichId: 'gibtsnicht', semester: 0, status: 'unbekannt' },
+    ],
+  });
+  gleich(verlauf.module[3].bereichId, '', 'unbekannter Bereich entfernt:');
+  gleich(verlauf.module[3].status, 'geplant', 'unbekannter Status → geplant:');
+  const a = werteStudienverlaufAus(verlauf);
+  gleich([a.gesamt.bestanden, a.gesamt.belegt, a.gesamt.geplant], [10, 6, 5], 'Gesamt:');
+  gleich(a.bereiche.map((b) => b.summe), [10, 6, 5], 'je Bereich (inkl. ohne Bereich):');
+  gleich(a.semester.map((s) => s.ects), [10, 6, 0, 0], 'je Semester:');
+  gleich(a.offen.length, 1, 'offen:');
+  wahr(a.hinweise.some((h) => h.includes('„Pflicht“: Es fehlen noch 20')), 'Hinweis fehlende ECTS');
+});
+
+test('Studienverlauf: Notenschnitt gewichtet und abgeschnitten', () => {
+  const verlauf = normalisiereStudienverlauf({ module: [
+    { name: 'A', ects: 6, status: 'bestanden', note: '1,7' },
+    { name: 'B', ects: 4, status: 'bestanden', note: '2,3' },
+    { name: 'C', ects: 5, status: 'bestanden', note: '' }, // ohne Note
+    { name: 'D', ects: 5, status: 'belegt', note: '1,0' }, // nicht bestanden → zählt nicht
+  ] });
+  const s = werteStudienverlaufAus(verlauf).schnitt;
+  gleich(Math.round(s.genau * 1000) / 1000, 1.94, 'genau:');
+  gleich(s.abgeschnitten, 1.9, 'abgeschnitten:');
+  gleich(s.ects, 10, 'ECTS mit Note:');
+  gleich(noteAbgeschnitten(2.0), 2, '2,0 bleibt 2,0:');
+  gleich(leseNote('6'), null, 'ungültige Note:');
+});
+
+test('Studienverlauf: Übernahme aus einer Variante überspringt Vorhandenes', () => {
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({ bereiche: [{ id: 'b1', name: 'Pflicht', sollEcts: 30 }],
+    module: [{ name: 'Statistik', ects: 6, semester: 1 }] });
+  const module = [{ id: 'm1', name: 'statistik ', ects: 6 }, { id: 'm2', name: 'Ethik', ects: 4, nummer: 'W-15' }];
+  const erg = uebernimmInStudienverlauf(module, 2, { m2: 'b1' });
+  gleich(erg, { neu: ['Ethik'], uebersprungen: ['statistik '] });
+  const ethik = daten.studienverlauf.module.find((m) => m.name === 'Ethik');
+  gleich([ethik.semester, ethik.status, ethik.bereichId, ethik.nummer], [2, 'belegt', 'b1', 'W-15']);
+  gleich(normalisiereDaten({}).studienverlauf.gesamtEcts, 120, 'Standard für alte Daten:');
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {

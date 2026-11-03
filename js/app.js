@@ -11,6 +11,7 @@ const TABS = {
   zeiten: () => zeigeGeblockteZeiten(),
   varianten: () => zeigeVariantenTab(),
   favoriten: () => zeigeFavoritenTab(),
+  studium: () => zeigeStudienverlauf(),
   einstellungen: () => zeigeEinstellungen(),
 };
 

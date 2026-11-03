@@ -13,7 +13,8 @@
    ├─ geblockteZeiten[]    z. B. Arbeit, Sport (mit Puffer)
    ├─ wuensche[]           weiche Wünsche, z. B. "Freitag frei" (mit Gewicht)
    ├─ vorlesungsfrei[]     Feiertage, Weihnachtspause …
-   └─ favoriten[]          gespeicherte Varianten
+   ├─ favoriten[]          gespeicherte Varianten
+   └─ studienverlauf       Bereiche und Module über alle Semester (studienverlauf.js)
    ===================================================================== */
 
 'use strict';
@@ -91,6 +92,7 @@ function leereDaten() {
     wuensche: [],
     vorlesungsfrei: [],
     favoriten: [],
+    studienverlauf: leererStudienverlauf(),
   };
 }
 
@@ -313,6 +315,7 @@ function normalisiereDaten(roh) {
         modulIds: Array.isArray(f.modulIds) ? f.modulIds.map(String) : [],
         auswahl: { ...f.auswahl },
       })),
+    studienverlauf: normalisiereStudienverlauf(quelle.studienverlauf),
   };
 }
 
@@ -350,5 +353,6 @@ function findeOption(optionId) {
 // Gibt es überhaupt schon eingegebene Daten?
 function hatDaten() {
   return daten.module.length > 0 || daten.geblockteZeiten.length > 0 || daten.wuensche.length > 0 ||
-    daten.vorlesungsfrei.length > 0 || daten.favoriten.length > 0;
+    daten.vorlesungsfrei.length > 0 || daten.favoriten.length > 0 ||
+    daten.studienverlauf.module.length > 0 || daten.studienverlauf.bereiche.length > 0;
 }

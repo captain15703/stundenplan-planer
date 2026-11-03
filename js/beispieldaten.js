@@ -4,7 +4,8 @@
    als Alternativen, 14-tägige Termine, Blockseminar, Termine nur in der
    ersten Semesterhälfte, geblockte Zeiten mit Puffer, Ferien,
    Prüfungstermine (inkl. einer Überschneidung und eines Wiederholungstermins)
-   ein Tutorium ohne Anwesenheitspflicht und einen Wunsch („Freitag frei“).
+   ein Tutorium ohne Anwesenheitspflicht, einen Wunsch („Freitag frei“)
+   und einen angefangenen Studienverlaufsplan.
    ===================================================================== */
 
 'use strict';
@@ -175,5 +176,23 @@ function beispieldatenErzeugen() {
     ],
 
     favoriten: [],
+
+    studienverlauf: {
+      gesamtEcts: 120,
+      semesterAnzahl: 4,
+      bereiche: [
+        { id: 'bsp-bereich-pflicht', name: 'Pflichtbereich', sollEcts: 30 },
+        { id: 'bsp-bereich-wahl', name: 'Wahlpflichtbereich', sollEcts: 48 },
+        { id: 'bsp-bereich-projekt', name: 'Projekt & Seminare', sollEcts: 12 },
+        { id: 'bsp-bereich-arbeit', name: 'Masterarbeit', sollEcts: 30 },
+      ],
+      module: [
+        { id: id('vmodul'), name: 'Forschungsmethoden', nummer: 'M-01', ects: 6, bereichId: 'bsp-bereich-pflicht', semester: 1, status: 'belegt', note: '' },
+        { id: id('vmodul'), name: 'Wissenschaftliches Schreiben', nummer: 'M-02', ects: 4, bereichId: 'bsp-bereich-pflicht', semester: 1, status: 'belegt', note: '' },
+        { id: id('vmodul'), name: 'Grundlagen Modellierung', nummer: 'M-03', ects: 6, bereichId: 'bsp-bereich-pflicht', semester: 2, status: 'geplant', note: '' },
+        { id: id('vmodul'), name: 'Projektseminar', nummer: 'P-01', ects: 12, bereichId: 'bsp-bereich-projekt', semester: 3, status: 'geplant', note: '' },
+        { id: id('vmodul'), name: 'Masterarbeit', nummer: 'MA', ects: 30, bereichId: 'bsp-bereich-arbeit', semester: 4, status: 'geplant', note: '' },
+      ],
+    },
   };
 }
