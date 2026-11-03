@@ -4,7 +4,7 @@
    als Alternativen, 14-tägige Termine, Blockseminar, Termine nur in der
    ersten Semesterhälfte, geblockte Zeiten mit Puffer, Ferien,
    Prüfungstermine (inkl. einer Überschneidung und eines Wiederholungstermins)
-   und ein Tutorium ohne Anwesenheitspflicht.
+   ein Tutorium ohne Anwesenheitspflicht und einen Wunsch („Freitag frei“).
    ===================================================================== */
 
 'use strict';
@@ -163,6 +163,10 @@ function beispieldatenErzeugen() {
         id: id('block'), name: 'Familienfeier', aktiv: true, art: 'zeitraum', wochentag: 6,
         datumVon: '2026-11-07', datumBis: '2026-11-07', ganztags: true, von: '', bis: '', pufferVor: 0, pufferNach: 0,
       },
+    ],
+
+    wuensche: [
+      { id: id('wunsch'), name: 'Freitag frei', aktiv: true, wochentage: [5], ganztags: true, von: '', bis: '', gewicht: 'mittel' },
     ],
 
     vorlesungsfrei: [

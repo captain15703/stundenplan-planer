@@ -11,6 +11,7 @@
    │       └─ optionen[]           Auswahlgruppe: genau EINE wird belegt
    │           └─ termine[]            wöchentlich / 14-tägig / Block
    ├─ geblockteZeiten[]    z. B. Arbeit, Sport (mit Puffer)
+   ├─ wuensche[]           weiche Wünsche, z. B. "Freitag frei" (mit Gewicht)
    ├─ vorlesungsfrei[]     Feiertage, Weihnachtspause …
    └─ favoriten[]          gespeicherte Varianten
    ===================================================================== */
@@ -35,6 +36,14 @@ const PRIORITAETEN = {
   freistunden: 'Wenigste Freistunden',
   beginn: 'Spätester Beginn',
   pendel: 'Wenigste Pendeltage',
+  wuensche: 'Wünsche am besten erfüllt',
+};
+
+// Gewichte der weichen Wünsche: Minuten Überschneidung werden damit multipliziert
+const WUNSCH_GEWICHTE = {
+  leicht: { name: 'leicht', faktor: 1 },
+  mittel: { name: 'mittel', faktor: 2 },
+  stark: { name: 'stark', faktor: 4 },
 };
 
 // Farbpalette für neue Module (gut unterscheidbar)
@@ -68,6 +77,7 @@ function standardEinstellungen() {
       { schluessel: 'freistunden', aktiv: true },
       { schluessel: 'beginn', aktiv: true },
       { schluessel: 'pendel', aktiv: false }, // neu: anfangs aus, damit sich nichts ungefragt ändert
+      { schluessel: 'wuensche', aktiv: true }, // wirkt nur, wenn Wünsche eingetragen sind
     ],
   };
 }
@@ -78,6 +88,7 @@ function leereDaten() {
     einstellungen: standardEinstellungen(),
     module: [],
     geblockteZeiten: [],
+    wuensche: [],
     vorlesungsfrei: [],
     favoriten: [],
   };
@@ -150,6 +161,19 @@ function neueGeblockteZeit() {
     bis: '17:00',
     pufferVor: 0, // Minuten
     pufferNach: 0, // Minuten
+  };
+}
+
+function neuerWunsch() {
+  return {
+    id: neueId('wunsch'),
+    name: '',
+    aktiv: true,
+    wochentage: [5], // 1 = Montag … 7 = Sonntag
+    ganztags: true,
+    von: '08:00',
+    bis: '10:00',
+    gewicht: 'mittel', // siehe WUNSCH_GEWICHTE
   };
 }
 
@@ -268,6 +292,13 @@ function normalisiereDaten(roh) {
       pufferNach: leseZahl(g.pufferNach, 0),
       datumBis: korrigiereEnddatum(g.datumVon, g.datumBis ?? ''),
     })),
+    wuensche: liste(quelle.wuensche).map((w) => ({
+      ...neuerWunsch(),
+      ...w,
+      wochentage: (Array.isArray(w.wochentage) ? w.wochentage : []).map(Number).filter((t) => t >= 1 && t <= 7),
+      ganztags: Boolean(w.ganztags),
+      gewicht: WUNSCH_GEWICHTE[w.gewicht] ? w.gewicht : 'mittel',
+    })),
     vorlesungsfrei: liste(quelle.vorlesungsfrei).map((f) => ({
       ...neueVorlesungsfreieZeit(),
       ...f,
@@ -318,6 +349,6 @@ function findeOption(optionId) {
 
 // Gibt es überhaupt schon eingegebene Daten?
 function hatDaten() {
-  return daten.module.length > 0 || daten.geblockteZeiten.length > 0 ||
+  return daten.module.length > 0 || daten.geblockteZeiten.length > 0 || daten.wuensche.length > 0 ||
     daten.vorlesungsfrei.length > 0 || daten.favoriten.length > 0;
 }

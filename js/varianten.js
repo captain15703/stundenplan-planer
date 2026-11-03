@@ -154,6 +154,7 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
     anzahl += zahlen.length;
   }
   const alle = zahlenPuffer.subarray(0, anzahl).sort();
+  const wunsch = wunschBewertung(optionInfos, normaleWochen);
 
   // Gibt es keine einzige normale Woche (z. B. sehr kurzer Zeitraum),
   // wird wie früher über alle Wochen mit Terminen gemittelt.
@@ -204,10 +205,64 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
     tageProWoche: uniTage / anzahlWochen,
     freistundenProWoche: lueckenMinuten / 60 / anzahlWochen,
     pendeltageProWoche: pendelTage / anzahlWochen,
+    wunschPunkte: wunsch.punkte / anzahlWochen, // gewichtete Stunden pro Woche, die Wünschen widersprechen
+    wunschVerstoesse: wunsch.verstoesse.map((v) => ({ ...v, proWoche: v.anzahl / anzahlWochen })),
     beginn: uniTage ? beginnSumme / uniTage : null, // Ø Beginn in Minuten
     fruehesterBeginn,
     blockTage: blockTage.size, // Tage mit Blockterminen im ganzen Semester
   };
+}
+
+/* ---------- Weiche Wünsche ----------
+   Ein Wunsch (z. B. "Freitag frei", "nicht vor 10 Uhr") schließt nichts
+   aus. Jede Minute Uni, die in ein Wunsch-Zeitfenster fällt, kostet
+   Punkte (Minuten × Gewicht). Gezählt wird – wie bei den Kennzahlen –
+   nur in normalen Vorlesungswochen; Blocktermine zählen nicht.
+   Das Ergebnis jeder Option wird an ihr zwischengespeichert, denn die
+   Werte sind additiv: Die Punkte einer Variante sind die Summe ihrer Optionen.
+   ------------------------------------------------------------------ */
+
+function wunschFenster(wunsch) {
+  if (wunsch.ganztags) return { start: 0, ende: MINUTEN_PRO_TAG };
+  const start = zeitZuMinuten(wunsch.von);
+  const ende = zeitZuMinuten(wunsch.bis);
+  return start === null || ende === null || start >= ende ? null : { start, ende };
+}
+
+function wunschBewertungOption(info, normaleWochen) {
+  if (info.wunschCache && info.wunschCache.wochen === normaleWochen) return info.wunschCache;
+  const nurNormaleWochen = normaleWochen.size > 0;
+  const ergebnis = { wochen: normaleWochen, punkte: 0, anzahl: new Map() }; // anzahl: Wunsch → Vorkommen
+  for (const wunsch of daten.wuensche || []) {
+    if (!wunsch.aktiv) continue;
+    const fenster = wunschFenster(wunsch);
+    if (!fenster) continue;
+    const faktor = (WUNSCH_GEWICHTE[wunsch.gewicht] || WUNSCH_GEWICHTE.mittel).faktor;
+    for (const v of info.vorkommen) {
+      if (v.termin && v.termin.rhythmus === 'block') continue;
+      if (nurNormaleWochen && !normaleWochen.has(montagVon(v.tag))) continue;
+      if (!wunsch.wochentage.includes(wochentagVon(v.tag))) continue;
+      const minuten = Math.min(v.ende, fenster.ende) - Math.max(v.start, fenster.start);
+      if (minuten <= 0) continue;
+      ergebnis.punkte += minuten / 60 * faktor;
+      ergebnis.anzahl.set(wunsch, (ergebnis.anzahl.get(wunsch) || 0) + 1);
+    }
+  }
+  info.wunschCache = ergebnis;
+  return ergebnis;
+}
+
+// Summe über alle Optionen einer Variante: { punkte, verstoesse: [{ wunsch, anzahl }] }
+function wunschBewertung(optionInfos, normaleWochen) {
+  let punkte = 0;
+  const anzahl = new Map();
+  if (!daten.wuensche || daten.wuensche.length === 0) return { punkte, verstoesse: [] };
+  for (const info of optionInfos) {
+    const b = wunschBewertungOption(info, normaleWochen);
+    punkte += b.punkte;
+    for (const [wunsch, n] of b.anzahl) anzahl.set(wunsch, (anzahl.get(wunsch) || 0) + n);
+  }
+  return { punkte, verstoesse: [...anzahl].map(([wunsch, n]) => ({ wunsch, anzahl: n })) };
 }
 
 /* ---------- Sortierung ---------- */
@@ -247,6 +302,9 @@ function vergleicheVarianten(a, b) {
       case 'beginn': // später ist besser – deshalb b minus a
         ergebnis = mitToleranz((kb.beginn ?? MINUTEN_PRO_TAG) - (ka.beginn ?? MINUTEN_PRO_TAG), 5) ||
           mitToleranz((kb.fruehesterBeginn ?? MINUTEN_PRO_TAG) - (ka.fruehesterBeginn ?? MINUTEN_PRO_TAG), 1);
+        break;
+      case 'wuensche':
+        ergebnis = mitToleranz(ka.wunschPunkte - kb.wunschPunkte, 0.01);
         break;
       case 'pendel':
         ergebnis = mitToleranz(ka.pendeltageProWoche - kb.pendeltageProWoche, 0.05);

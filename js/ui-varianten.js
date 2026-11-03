@@ -233,7 +233,8 @@ function kennzahlenKurz(variante) {
 function kennzahlenText(k) {
   return `Ø ${formatZahl(k.tageProWoche)} Tage` + (k.blockTage ? ` + ${blocktageText(k.blockTage)}` : '') +
     ` · Ø ${formatZahl(k.freistundenProWoche)} h frei` + (k.beginn !== null ? ` · Ø ab ${minutenZuZeit(Math.round(k.beginn))}` : '') +
-    (k.pendeltageProWoche > 0.05 ? ` · Ø ${formatZahl(k.pendeltageProWoche)} Pendeltage` : '');
+    (k.pendeltageProWoche > 0.05 ? ` · Ø ${formatZahl(k.pendeltageProWoche)} Pendeltage` : '') +
+    (k.wunschVerstoesse && k.wunschVerstoesse.length ? ` · ${k.wunschVerstoesse.length} ${k.wunschVerstoesse.length === 1 ? 'Wunsch' : 'Wünsche'} verletzt` : '');
 }
 
 function blocktageText(anzahl) {
@@ -327,7 +328,16 @@ function kennzahlenHtml(ects, ziel, k) {
       <div class="kachel${k.pendeltageProWoche > 0.05 ? ' warnung' : ''}"><span class="wert">${formatZahl(k.pendeltageProWoche)}</span>
         <span class="name">Ø Pendeltage/Woche<br>(unter ${formatZahl(leseZahl(daten.einstellungen.pendeltagSchwelle, 2))} h Uni)</span></div>
     </div>
+    ${wunschZeileHtml(k)}
     <p class="hilfe kennzahlen-hinweis">${KENNZAHLEN_HINWEIS}</p>`;
+}
+
+// "Wünsche: Freitag frei (Ø 1×/Woche) nicht erfüllt" – nur wenn Wünsche eingetragen sind
+function wunschZeileHtml(k) {
+  if (!daten.wuensche || !daten.wuensche.some((w) => w.aktiv)) return '';
+  if (!k.wunschVerstoesse || k.wunschVerstoesse.length === 0) return '<p class="wunsch-zeile gut">✓ Alle Wünsche erfüllt</p>';
+  return '<p class="wunsch-zeile">Nicht erfüllt: ' + k.wunschVerstoesse
+    .map((v) => `<strong>${escapeHtml(v.wunsch.name)}</strong> (Ø ${formatZahl(v.proWoche)}×/Woche)`).join(', ') + '</p>';
 }
 
 // Liste der belegten Module/Veranstaltungen und der nicht belegten Wahlmodule

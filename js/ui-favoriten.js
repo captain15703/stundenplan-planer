@@ -96,6 +96,7 @@ function vergleichHtml(eintraege) {
     { name: 'Prüfungen am selben/Folgetag', wert: (a) => pruefungsplan(a.module).hinweise.length, text: (a) => String(pruefungsplan(a.module).hinweise.length), besser: (x, y) => x - y },
     { name: 'Ø Freistunden/Woche', wert: (a) => a.kennzahlen.freistundenProWoche, text: (a) => formatZahl(a.kennzahlen.freistundenProWoche) + ' h', besser: (x, y) => x - y },
     { name: 'Ø Pendeltage/Woche', wert: (a) => a.kennzahlen.pendeltageProWoche, text: (a) => formatZahl(a.kennzahlen.pendeltageProWoche), besser: (x, y) => x - y },
+    { name: 'Wunsch-Abzüge', wert: (a) => a.kennzahlen.wunschPunkte, text: (a) => a.kennzahlen.wunschVerstoesse.length ? a.kennzahlen.wunschVerstoesse.map((v) => v.wunsch.name).join(', ') : '–', besser: (x, y) => x - y },
     { name: 'Ø Beginn', wert: (a) => a.kennzahlen.beginn ?? MINUTEN_PRO_TAG, text: (a) => a.kennzahlen.beginn !== null ? minutenZuZeit(Math.round(a.kennzahlen.beginn)) : '–', besser: (x, y) => y - x },
     { name: 'Frühester Beginn', wert: (a) => a.kennzahlen.fruehesterBeginn ?? MINUTEN_PRO_TAG, text: (a) => a.kennzahlen.fruehesterBeginn !== null ? minutenZuZeit(a.kennzahlen.fruehesterBeginn) : '–', besser: (x, y) => y - x },
   ];

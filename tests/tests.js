@@ -882,6 +882,35 @@ test('Teilen: Übernehmen legt neue Module und einen Favoriten an', () => {
   wahr(!daten.module.some((m) => gelesen.modulIds.includes(m.id)), 'neue IDs');
 });
 
+/* ---------- Weiche Wünsche ---------- */
+
+test('Wünsche: Abzug nach Minuten und Gewicht, nichts wird ausgeschlossen', () => {
+  setzeDaten({
+    module: [M('A', 6, true, [V('Übung', [O('Fr', [T(5, '10:00', '12:00')]), O('Di früh', [T(2, '08:00', '10:00')]), O('Di', [T(2, '10:00', '12:00')])])])],
+    einstellungen: { ectsZiel: 0, prioritaeten: [{ schluessel: 'wuensche', aktiv: true }] },
+  });
+  daten.wuensche = normalisiereDaten({ wuensche: [
+    { name: 'Freitag frei', wochentage: [5], ganztags: true, gewicht: 'stark' },
+    { name: 'Nicht vor 10', wochentage: [1, 2, 3, 4, 5], ganztags: false, von: '00:00', bis: '10:00', gewicht: 'leicht' },
+  ] }).wuensche;
+  const erg = berechneVarianten();
+  gleich(erg.anzahl, 3, 'alle Varianten bleiben:');
+  const namen = erg.varianten.map((v) => erg.optionen[v.optionen[0]].option.name);
+  gleich(namen, ['Di', 'Di früh', 'Fr'], 'Reihenfolge:');
+  const k = (i) => erg.varianten[i].kennzahlen;
+  gleich(k(0).wunschPunkte, 0, 'Di ohne Abzug:');
+  gleich(k(1).wunschPunkte, 2, 'Di früh: 2 h × leicht:');
+  gleich(k(2).wunschPunkte, 8, 'Fr: 2 h × stark:');
+  gleich(k(2).wunschVerstoesse.map((v) => v.wunsch.name), ['Freitag frei']);
+  gleich(k(2).wunschVerstoesse[0].proWoche, 1, 'einmal pro Woche:');
+});
+
+test('Wünsche: alte Daten bekommen leere Liste, Kriterium ist an', () => {
+  const geladen = normalisiereDaten({ einstellungen: { prioritaeten: [{ schluessel: 'ects', aktiv: true }] } });
+  gleich(geladen.wuensche, []);
+  gleich(geladen.einstellungen.prioritaeten.find((p) => p.schluessel === 'wuensche').aktiv, true);
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {
