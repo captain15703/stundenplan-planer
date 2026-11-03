@@ -2,8 +2,9 @@
    beispieldaten.js – fachneutrale Beispieldaten zum Ausprobieren.
    Sie zeigen alle Funktionen: Pflicht- und Wahlmodule, Übungsgruppen
    als Alternativen, 14-tägige Termine, Blockseminar, Termine nur in der
-   ersten Semesterhälfte, geblockte Zeiten mit Puffer, Ferien und
-   Prüfungstermine (inkl. einer Überschneidung und eines Wiederholungstermins).
+   ersten Semesterhälfte, geblockte Zeiten mit Puffer, Ferien,
+   Prüfungstermine (inkl. einer Überschneidung und eines Wiederholungstermins)
+   und ein Tutorium ohne Anwesenheitspflicht.
    ===================================================================== */
 
 'use strict';
@@ -54,6 +55,8 @@ function beispieldatenErzeugen() {
           option('Gruppe B', [termin(2, '14:00', '16:00', 'R 2.01')]),
           option('Gruppe C', [termin(4, '12:00', '14:00', 'R 2.03')]),
         ]),
+        // Freiwilliges Tutorium mit Aufzeichnung – darf sich überschneiden
+        { ...veranstaltung('Tutorium', 'freiwillig, aufgezeichnet', [option('', [termin(3, '13:00', '14:00', 'R 2.01')])]), anwesenheitOptional: true },
       ]),
 
       modul({

@@ -258,6 +258,7 @@ main {
 }
 .abzeichen.pflicht { background: var(--akzent-hell); color: var(--akzent); }
 .abzeichen.wahl { background: var(--flaeche-2); color: var(--text-gedimmt); }
+.abzeichen.optional { background: var(--flaeche-2); color: var(--text-gedimmt); text-transform: none; letter-spacing: 0; }
 .ects { font-weight: 600; font-size: .9rem; white-space: nowrap; }
 
 .notizen { margin-top: 6px; font-size: .9rem; }
@@ -538,6 +539,7 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
 .termin-block strong { font-size: .76rem; hyphens: auto; overflow-wrap: break-word; }
 .termin-block span, .termin-block em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .termin-block em { font-style: normal; font-weight: 600; opacity: .9; }
+.termin-block.optional { opacity: .55; outline: 1px dashed currentColor; outline-offset: -3px; }
 .termin-block.gestreift {
   background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .28) 0 6px, transparent 6px 12px);
 }

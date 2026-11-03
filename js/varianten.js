@@ -40,6 +40,7 @@ function erstelleOptionInfo(modul, veranstaltung, option, freieTage) {
   vorkommen.sort((a, b) => a.tag - b.tag || a.start - b.start);
   return {
     modul, veranstaltung, option, vorkommen,
+    optional: Boolean(veranstaltung.anwesenheitOptional), // darf sich überschneiden
     // Für die Kennzahlen: regelmäßige Termine (als Zahlen) und Blocktermine getrennt
     zahlen: alsZahlen(vorkommen.filter((v) => v.termin.rhythmus !== 'block')),
     blockTage: [...new Set(vorkommen.filter((v) => v.termin.rhythmus === 'block').map((v) => v.tag))],
@@ -134,8 +135,10 @@ function normaleVorlesungswochen() {
 // Mittelwert. Blocktermine zählen nicht mit, sondern separat als "blockTage".
 // "Pendeltage" sind Uni-Tage, an denen insgesamt weniger als die eingestellte
 // Zahl an Stunden Uni stattfindet (die Fahrt lohnt sich kaum).
+// Veranstaltungen ohne Anwesenheitspflicht zählen nur mit, wenn das eingestellt ist.
 function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen()) {
   const pendelSchwelle = leseZahl(daten.einstellungen.pendeltagSchwelle, 2) * 60;
+  if (!daten.einstellungen.optionaleInKennzahlen) optionInfos = optionInfos.filter((info) => !info.optional);
   // Alle regelmäßigen Vorkommen (als Zahlen, siehe oben) in den Puffer kopieren und sortieren
   let anzahl = 0;
   const blockTage = new Set();
@@ -297,7 +300,8 @@ function bereiteVor() {
       diagnose.push({ art: 'info', text: optionBezeichnung(info) + ': hat keine Termine im Zeitraum und wird ignoriert.' });
       continue;
     }
-    const kollision = ersteUeberschneidung(info.vorkommen, blockVorkommen);
+    // Ohne Anwesenheitspflicht darf eine Veranstaltung auch in geblockten Zeiten liegen
+    const kollision = info.optional ? null : ersteUeberschneidung(info.vorkommen, blockVorkommen);
     if (kollision) {
       diagnose.push({
         art: 'info',
@@ -401,6 +405,7 @@ function berechneVarianten() {
   for (let i = 0; i < optionen.length; i++) {
     for (let j = i + 1; j < optionen.length; j++) {
       if (optionen[i].veranstaltung === optionen[j].veranstaltung) continue; // schließen sich ohnehin aus
+      if (optionen[i].optional || optionen[j].optional) continue; // dürfen sich überschneiden (nur Hinweis)
       if (ersteUeberschneidung(optionen[i].vorkommen, optionen[j].vorkommen)) {
         konflikte[i].push(j);
         konflikte[j].push(i);
@@ -583,6 +588,7 @@ function varianteAusAuswahl(modulIds, auswahl) {
   // Überschneidungen untereinander und mit geblockten Zeiten (Daten könnten sich geändert haben)
   for (let i = 0; i < infos.length; i++) {
     for (let j = i + 1; j < infos.length; j++) {
+      if (infos[i].optional || infos[j].optional) continue; // nur Hinweis, siehe optionaleUeberschneidungen()
       if (ersteUeberschneidung(infos[i].vorkommen, infos[j].vorkommen)) {
         probleme.push('Überschneidung: ' + optionBezeichnung(infos[i]) + ' und ' + optionBezeichnung(infos[j]) + '.');
       }
@@ -596,6 +602,7 @@ function varianteAusAuswahl(modulIds, auswahl) {
       .flatMap((block) => vorkommenVonGeblockterZeit(block, vonTag, bisTag))
       .sort((a, b) => a.tag - b.tag || a.start - b.start);
     for (const info of infos) {
+      if (info.optional) continue;
       const kollision = ersteUeberschneidung(info.vorkommen, geblockt);
       if (kollision) probleme.push(optionBezeichnung(info) + ' kollidiert mit „' + kollision.b.block.name + '“.');
     }
@@ -608,6 +615,53 @@ function varianteAusAuswahl(modulIds, auswahl) {
     kennzahlen: berechneKennzahlen(infos),
     probleme: [...new Set(probleme)], // doppelte Meldungen entfernen
   };
+}
+
+/* ---------- Veranstaltungen ohne Anwesenheitspflicht ---------- */
+
+// Zählt, an wie vielen Vorkommen sich zwei sortierte Listen überschneiden
+function zaehleUeberschneidungen(listeA, listeB) {
+  let anzahl = 0;
+  let i = 0;
+  let j = 0;
+  while (i < listeA.length && j < listeB.length) {
+    const a = listeA[i];
+    const b = listeB[j];
+    if (a.tag < b.tag) { i++; continue; }
+    if (b.tag < a.tag) { j++; continue; }
+    if (a.start < b.ende && b.start < a.ende) anzahl++;
+    if (a.ende <= b.ende) i++; else j++;
+  }
+  return anzahl;
+}
+
+// Hinweise, wo sich Veranstaltungen ohne Anwesenheitspflicht mit anderen
+// Terminen oder geblockten Zeiten überschneiden (das ist erlaubt, man
+// schaut dann z. B. die Aufzeichnung). Liefert eine Liste von Texten.
+function optionaleUeberschneidungen(infos) {
+  const hinweise = [];
+  const optionale = infos.filter((info) => info.optional);
+  if (optionale.length === 0) return hinweise;
+  const anzahlText = (n) => n === 1 ? '1 Termin' : n + ' Termine';
+
+  for (const info of optionale) {
+    for (const andere of infos) {
+      if (andere === info || (andere.optional && infos.indexOf(andere) < infos.indexOf(info))) continue;
+      const anzahl = zaehleUeberschneidungen(info.vorkommen, andere.vorkommen);
+      if (anzahl) hinweise.push(`${optionBezeichnung(info)} überschneidet sich mit ${optionBezeichnung(andere)} (${anzahlText(anzahl)}).`);
+    }
+  }
+  const tage = optionale.flatMap((info) => info.vorkommen.map((v) => v.tag));
+  const geblockt = daten.geblockteZeiten.filter((b) => b.aktiv)
+    .flatMap((block) => vorkommenVonGeblockterZeit(block, Math.min(...tage), Math.max(...tage)))
+    .sort((a, b) => a.tag - b.tag || a.start - b.start);
+  for (const info of optionale) {
+    for (const block of daten.geblockteZeiten.filter((b) => b.aktiv)) {
+      const anzahl = zaehleUeberschneidungen(info.vorkommen, geblockt.filter((g) => g.block === block));
+      if (anzahl) hinweise.push(`${optionBezeichnung(info)} liegt in „${block.name}“ (${anzahlText(anzahl)}).`);
+    }
+  }
+  return hinweise;
 }
 
 // Hilft bei der Fehlersuche, wenn gar keine Variante gefunden wurde

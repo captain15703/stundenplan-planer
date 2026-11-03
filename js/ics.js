@@ -149,6 +149,7 @@ function terminAlsIcs(info, termin, zeitstempel) {
     info.modul.ects ? 'ECTS: ' + formatZahl(info.modul.ects) : '',
     info.modul.dozent ? 'Dozent:in: ' + info.modul.dozent : '',
     info.modul.pruefungsform ? 'Prüfung: ' + info.modul.pruefungsform : '',
+    info.optional ? 'Anwesenheit optional' : '',
     sichererLink(info.modul.link) ? 'Link: ' + sichererLink(info.modul.link) : '',
   ].filter(Boolean).join('\n');
 

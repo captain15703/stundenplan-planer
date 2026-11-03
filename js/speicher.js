@@ -61,6 +61,7 @@ function standardEinstellungen() {
     maxVarianten: 20, // so viele Varianten werden höchstens angezeigt
     pendeltagSchwelle: 2, // Uni-Tage mit weniger Stunden Uni gelten als "Pendeltag"
     backupErinnerungTage: 14, // Erinnerung ans Backup nach so vielen Tagen (0 = aus)
+    optionaleInKennzahlen: false, // Veranstaltungen ohne Anwesenheitspflicht in Uni-Tage usw. einrechnen?
     prioritaeten: [
       { schluessel: 'ects', aktiv: true },
       { schluessel: 'tage', aktiv: true },
@@ -106,6 +107,7 @@ function neueVeranstaltung() {
     typ: 'Vorlesung',
     titel: '',
     aktiv: true,
+    anwesenheitOptional: false, // true = darf sich überschneiden (z. B. Aufzeichnung vorhanden)
     optionen: [neueOption('')],
   };
 }
@@ -240,6 +242,7 @@ function normalisiereDaten(roh) {
       veranstaltungen: liste(m.veranstaltungen).map((v) => ({
         ...neueVeranstaltung(),
         ...v,
+        anwesenheitOptional: Boolean(v.anwesenheitOptional),
         optionen: liste(v.optionen).map((o) => ({
           ...neueOption(''),
           ...o,

@@ -407,8 +407,10 @@ test('Beispieldaten: Varianten sind wirklich überschneidungsfrei', () => {
     const infos = variante.optionen.map((n) => erg.optionen[n]);
     wahr(variante.ects >= 30, 'ECTS-Ziel erreicht');
     for (let i = 0; i < infos.length; i++) {
+      if (infos[i].optional) continue; // ohne Anwesenheitspflicht darf es sich überschneiden
       wahr(ersteUeberschneidung(infos[i].vorkommen, blockVorkommen) === null, 'Kollision mit geblockter Zeit');
       for (let j = i + 1; j < infos.length; j++) {
+        if (infos[j].optional) continue;
         wahr(ersteUeberschneidung(infos[i].vorkommen, infos[j].vorkommen) === null, 'Überschneidung in Variante');
       }
     }
@@ -597,8 +599,9 @@ test('Favorit wird mit aktuellen Daten nachgebaut und erkennt Änderungen', () =
   gleich(nachgebaut.kennzahlen, variante.kennzahlen, 'Kennzahlen:');
 
   // Termin verschieben → Überschneidung erkennen
-  const erste = findeOption(Object.values(auswahl)[0]).option.termine[0];
-  const zweite = findeOption(Object.values(auswahl)[1]).option.termine[0];
+  const pflichtig = Object.values(auswahl).map((id) => findeOption(id)).filter((g) => !g.veranstaltung.anwesenheitOptional);
+  const erste = pflichtig[0].option.termine[0];
+  const zweite = pflichtig[1].option.termine[0];
   Object.assign(zweite, { rhythmus: erste.rhythmus, wochentag: erste.wochentag, von: erste.von, bis: erste.bis, start: '', ende: '' });
   wahr(varianteAusAuswahl(modulIds, auswahl).probleme.some((p) => p.startsWith('Überschneidung')), 'Überschneidung erwartet');
 
@@ -770,7 +773,7 @@ test('Pendeltage: Markierung im Wochenraster', () => {
   const tage = pendeltagWochentage([
     { wochentag: 1, start: 600, ende: 660 },
     { wochentag: 2, start: 600, ende: 720 },
-    { wochentag: 3, start: 600, ende: 660, hinweis: 'Block' },
+    { wochentag: 3, start: 600, ende: 660, block: true },
   ]);
   gleich([...tage], [1]);
 });
@@ -787,6 +790,46 @@ test('Backup-Erinnerung: wann sie erscheint', () => {
   gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag }, 14, jetzt, false), false, 'ohne Daten:');
   gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag, spaeterBis: jetzt + tag }, 14, jetzt, true), false, 'später:');
   gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag, spaeterBis: jetzt - 1 }, 14, jetzt, true), true, 'später abgelaufen:');
+});
+
+/* ---------- Anwesenheit optional ---------- */
+
+test('Anwesenheit optional: Überschneidung erlaubt, nur Hinweis', () => {
+  const aufzeichnung = { ...V('Vorlesung', [O('', [T(1, '10:00', '12:00')])]), anwesenheitOptional: true };
+  setzeDaten({ module: [
+    M('A', 6, true, [aufzeichnung]),
+    M('B', 6, true, [V('Seminar', [O('', [T(1, '11:00', '13:00')])])]),
+  ], einstellungen: { ectsZiel: 0 } });
+  const erg = berechneVarianten();
+  gleich(erg.varianten.length, 1, 'Variante trotz Überschneidung:');
+  const infos = erg.varianten[0].optionen.map((n) => erg.optionen[n]);
+  const hinweise = optionaleUeberschneidungen(infos);
+  gleich(hinweise.length, 1, 'ein Hinweis:');
+  wahr(hinweise[0].includes(' Termine)'), 'Anzahl genannt: ' + hinweise[0]);
+});
+
+test('Anwesenheit optional: zählt standardmäßig nicht in Kennzahlen', () => {
+  const aufzeichnung = { ...V('Vorlesung', [O('', [T(5, '08:00', '10:00')])]), anwesenheitOptional: true };
+  setzeDaten({ module: [
+    M('A', 6, true, [aufzeichnung, V('Übung', [O('', [T(2, '10:00', '12:00')])])]),
+  ], einstellungen: { ectsZiel: 0 } });
+  gleich(berechneVarianten().varianten[0].kennzahlen.tageProWoche, 1, 'nur Di:');
+  daten.einstellungen.optionaleInKennzahlen = true;
+  gleich(berechneVarianten().varianten[0].kennzahlen.tageProWoche, 2, 'mit Fr:');
+});
+
+test('Anwesenheit optional: darf in geblockter Zeit liegen', () => {
+  const aufzeichnung = { ...V('Vorlesung', [O('', [T(1, '10:00', '12:00')])]), anwesenheitOptional: true };
+  setzeDaten({
+    module: [M('A', 6, true, [aufzeichnung])],
+    geblockteZeiten: [{ name: 'Arbeit', art: 'woechentlich', wochentag: 1, ganztags: true, aktiv: true }],
+    einstellungen: { ectsZiel: 0 },
+  });
+  const erg = berechneVarianten();
+  gleich(erg.varianten.length, 1);
+  const hinweise = optionaleUeberschneidungen(erg.varianten[0].optionen.map((n) => erg.optionen[n]));
+  wahr(hinweise.some((h) => h.includes('„Arbeit“')), 'Hinweis zur Arbeit');
+  gleich(normalisiereDaten({ module: [{ veranstaltungen: [{}] }] }).module[0].veranstaltungen[0].anwesenheitOptional, false, 'Standard:');
 });
 
 /* ---------- Ergebnis anzeigen ---------- */

@@ -163,6 +163,8 @@ function steuerungHtml() {
             </label>
           </div>
           <p class="hilfe">Uni-Tage mit weniger Unizeit werden markiert – die Fahrt lohnt sich kaum.</p>
+          <label class="auswahl"><input type="checkbox" data-aktion="varianten-schalter" data-feld="optionaleInKennzahlen"${e.optionaleInKennzahlen ? ' checked' : ''}>
+            Termine ohne Anwesenheitspflicht in Kennzahlen einrechnen</label>
         </div>
         <div>
           <h4>Sortierung (wichtigstes zuerst)</h4>
@@ -288,6 +290,7 @@ function variantenDetailHtml() {
         </div>
       </div>
       ${kennzahlenHtml(variante.ects, ziel, k)}
+      ${optionalHinweisHtml(infos)}
       <label class="feld wochen-wahl">Ansicht
         <select data-aktion="woche-waehlen">${optionenHtml(wochen, String(gewaehlteWoche))}</select>
       </label>
@@ -296,6 +299,14 @@ function variantenDetailHtml() {
       ${pruefungsplanHtml(variante.module)}
       ${belegungHtml(variante.module, infos)}
     </div>`;
+}
+
+// Überschneidungen von Terminen ohne Anwesenheitspflicht (auch für Favoriten)
+function optionalHinweisHtml(infos) {
+  const hinweise = optionaleUeberschneidungen(infos);
+  if (!hinweise.length) return '';
+  return `<details class="hinweis info"><summary>${hinweise.length} ${hinweise.length === 1 ? 'Überschneidung' : 'Überschneidungen'} mit Terminen ohne Anwesenheitspflicht (erlaubt)</summary>
+    <ul>${hinweise.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul></details>`;
 }
 
 // Kacheln mit den wichtigsten Kennzahlen
@@ -319,7 +330,7 @@ function kennzahlenHtml(ects, ziel, k) {
 function belegungHtml(module, infos) {
   const belegt = module.map((modul) => {
     const zeilen = infos.filter((info) => info.modul === modul).map((info) => `
-      <li>${escapeHtml(veranstaltungName(info.veranstaltung))}${info.option.name ? ' <strong>' + escapeHtml(info.option.name) + '</strong>' : ''}:
+      <li>${escapeHtml(veranstaltungName(info.veranstaltung))}${info.option.name ? ' <strong>' + escapeHtml(info.option.name) + '</strong>' : ''}${info.optional ? ' <span class="abzeichen optional">Anwesenheit optional</span>' : ''}:
         ${info.option.termine.map((t) => escapeHtml(beschreibeTermin(t))).join('; ')}</li>`).join('');
     return `
       <li class="belegung-modul">

@@ -105,6 +105,7 @@ function kalenderwocheHtml(optionInfos, montag, module, pixelProStunde) {
         start: v.start,
         ende: v.ende,
       }));
+      eintraege[eintraege.length - 1].block = v.termin.rhythmus === 'block';
     }
   }
 
@@ -165,8 +166,10 @@ function uniEintrag(info, termin, wochentag, { gestreift, hinweis, start, ende }
     titel: info.modul.name,
     zeile2: veranstaltungName(info.veranstaltung) + (info.option.name ? ' · ' + info.option.name : ''),
     zeile3: termin.von + '–' + termin.bis + (termin.raum ? ' · ' + termin.raum : ''),
-    hinweis,
+    hinweis: [hinweis, info.optional ? 'Anwesenheit optional' : ''].filter(Boolean).join(', '),
     gestreift,
+    optional: info.optional,
+    zaehltMit: !info.optional || Boolean(daten.einstellungen.optionaleInKennzahlen), // für Pendeltage
   };
 }
 
@@ -177,7 +180,7 @@ function pendeltagWochentage(eintraege) {
   const ergebnis = new Set();
   for (let wochentag = 1; wochentag <= 7; wochentag++) {
     const tagesEintraege = eintraege
-      .filter((e) => e.wochentag === wochentag && e.hinweis !== 'Block' && e.zaehltMit !== false)
+      .filter((e) => e.wochentag === wochentag && !e.block && e.zaehltMit !== false)
       .sort((a, b) => a.start - b.start);
     if (tagesEintraege.length === 0) continue;
     let minuten = 0;
@@ -277,7 +280,7 @@ function rasterHtml(tage, eintraege, geblockt, pruefungen = [], pixelProStunde =
     for (const e of tagesEintraege) {
       const breite = 100 / e.spalten;
       const titel = [e.titel, e.zeile2, e.zeile3, e.hinweis].filter(Boolean).join('\n');
-      html += `<div class="termin-block${e.gestreift ? ' gestreift' : ''}" title="${escapeHtml(titel)}"
+      html += `<div class="termin-block${e.gestreift ? ' gestreift' : ''}${e.optional ? ' optional' : ''}" title="${escapeHtml(titel)}"
           data-aktion="termin-info" data-info="${escapeHtml(titel)}"
           style="top:${pixel(e.start)}px;height:${pixel(e.ende) - pixel(e.start)}px;left:${(e.spalte * breite).toFixed(2)}%;width:${breite.toFixed(2)}%;background-color:${escapeHtml(e.farbe)};color:${textfarbeFuer(e.farbe)}">
           <strong>${escapeHtml(e.titel)}</strong>

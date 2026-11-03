@@ -63,6 +63,7 @@ function zeigeFavoritenTab() {
         <p class="farbpunkte">${a.module.map((m) => `<span class="farbpunkt" style="background:${escapeHtml(m.farbe)}" title="${escapeHtml(m.name)}"></span>`).join('')}</p>
         <p class="klein gedimmt">${formatZahl(a.ects)} ECTS · ${kennzahlenText(a.kennzahlen)}<br>
           gespeichert am ${formatZeitpunkt(favorit.gespeichertAm)}</p>
+        ${optionalHinweisHtml(a.infos)}
         ${a.probleme.length ? `<div class="hinweis klein"><strong>Veraltet:</strong><ul>${a.probleme.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>` : ''}
         <div class="karte-aktionen">
           <button class="knopf klein" data-aktion="favorit-ics" data-id="${favorit.id}">📅 .ics</button>
