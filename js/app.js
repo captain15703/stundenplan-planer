@@ -78,6 +78,7 @@ window.addEventListener('hashchange', () => zeigeTab(location.hash.slice(1)));
 function start() {
   datenLaden();
   $('#hinweis-speicher').hidden = speicherVerfuegbar;
+  aktualisiereBackupErinnerung();
   zeigeTab(location.hash.slice(1) || 'module');
 }
 

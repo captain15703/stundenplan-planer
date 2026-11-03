@@ -122,6 +122,8 @@ main {
   padding: 10px 16px;
   margin: 0;
 }
+.banner-backup:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.banner-backup .knopf-reihe { margin: 0; }
 .hinweis {
   background: var(--warnung-hg);
   border: 1px solid var(--warnung-rand);

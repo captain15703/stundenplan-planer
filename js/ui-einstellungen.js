@@ -59,6 +59,12 @@ function zeigeEinstellungen() {
         <button class="knopf" data-aktion="backup-export">⬇ Backup exportieren</button>
         <button class="knopf" data-aktion="backup-import">⬆ Backup importieren</button>
       </div>
+      <div class="feldreihe abstand-oben">
+        <label class="feld schmal">Backup-Erinnerung nach (Tagen)
+          <input type="number" min="0" step="1" inputmode="numeric" data-aktion="einstellung-zahl" data-feld="backupErinnerungTage" value="${escapeHtml(e.backupErinnerungTage)}">
+        </label>
+      </div>
+      <p class="hilfe">Erinnert dich, wenn deine letzte Änderung so lange ungesichert ist. 0 schaltet die Erinnerung aus.</p>
       <div class="knopf-reihe abstand-oben">
         <button class="knopf" data-aktion="beispieldaten-laden">Beispieldaten laden</button>
         <button class="knopf gefahr" data-aktion="alles-loeschen">Alle Daten löschen</button>
@@ -93,6 +99,12 @@ function beschreibeVorlesungsfrei(frei) {
 aktionen['einstellung'] = (werte, element) => {
   daten.einstellungen[werte.feld] = element.value;
   // Nicht neu zeichnen, damit der Fokus im nächsten Feld bleibt
+  datenGeaendert(false);
+};
+
+// Zahl-Einstellung (z. B. Tage für die Backup-Erinnerung)
+aktionen['einstellung-zahl'] = (werte, element) => {
+  daten.einstellungen[werte.feld] = Math.max(0, Math.round(leseZahl(element.value, 0)));
   datenGeaendert(false);
 };
 

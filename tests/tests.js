@@ -775,6 +775,20 @@ test('Pendeltage: Markierung im Wochenraster', () => {
   gleich([...tage], [1]);
 });
 
+/* ---------- Backup-Erinnerung ---------- */
+
+test('Backup-Erinnerung: wann sie erscheint', () => {
+  const tag = MS_PRO_TAG;
+  const jetzt = 100 * tag;
+  gleich(backupErinnerungFaellig({}, 14, jetzt, true), false, 'alles gesichert:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 13 * tag }, 14, jetzt, true), false, '13 Tage:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 14 * tag }, 14, jetzt, true), true, '14 Tage:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag }, 0, jetzt, true), false, 'abgeschaltet:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag }, 14, jetzt, false), false, 'ohne Daten:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag, spaeterBis: jetzt + tag }, 14, jetzt, true), false, 'später:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag, spaeterBis: jetzt - 1 }, 14, jetzt, true), true, 'später abgelaufen:');
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {

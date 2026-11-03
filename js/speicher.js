@@ -60,6 +60,7 @@ function standardEinstellungen() {
     nurZielErreicht: true, // Varianten unter dem ECTS-Ziel ausblenden
     maxVarianten: 20, // so viele Varianten werden höchstens angezeigt
     pendeltagSchwelle: 2, // Uni-Tage mit weniger Stunden Uni gelten als "Pendeltag"
+    backupErinnerungTage: 14, // Erinnerung ans Backup nach so vielen Tagen (0 = aus)
     prioritaeten: [
       { schluessel: 'ects', aktiv: true },
       { schluessel: 'tage', aktiv: true },
@@ -190,6 +191,7 @@ function datenSpeichern() {
   try {
     localStorage.setItem(SPEICHER_SCHLUESSEL, JSON.stringify(daten));
     speicherVerfuegbar = true;
+    merkeAenderung();
   } catch (fehler) {
     console.warn('Daten konnten nicht gespeichert werden:', fehler);
     speicherVerfuegbar = false;
@@ -223,6 +225,7 @@ function normalisiereDaten(roh) {
 
   // Enddaten vor dem Beginn (vertipptes Jahr) werden überall automatisch korrigiert
   einstellungen.pendeltagSchwelle = Math.max(0, leseZahl(einstellungen.pendeltagSchwelle, 2));
+  einstellungen.backupErinnerungTage = Math.max(0, Math.round(leseZahl(einstellungen.backupErinnerungTage, 14)));
 
   einstellungen.semesterEnde = korrigiereEnddatum(einstellungen.semesterStart, einstellungen.semesterEnde);
 
