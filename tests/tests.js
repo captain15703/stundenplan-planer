@@ -407,8 +407,10 @@ test('Beispieldaten: Varianten sind wirklich überschneidungsfrei', () => {
     const infos = variante.optionen.map((n) => erg.optionen[n]);
     wahr(variante.ects >= 30, 'ECTS-Ziel erreicht');
     for (let i = 0; i < infos.length; i++) {
+      if (infos[i].optional) continue; // ohne Anwesenheitspflicht darf es sich überschneiden
       wahr(ersteUeberschneidung(infos[i].vorkommen, blockVorkommen) === null, 'Kollision mit geblockter Zeit');
       for (let j = i + 1; j < infos.length; j++) {
+        if (infos[j].optional) continue;
         wahr(ersteUeberschneidung(infos[i].vorkommen, infos[j].vorkommen) === null, 'Überschneidung in Variante');
       }
     }
@@ -597,8 +599,9 @@ test('Favorit wird mit aktuellen Daten nachgebaut und erkennt Änderungen', () =
   gleich(nachgebaut.kennzahlen, variante.kennzahlen, 'Kennzahlen:');
 
   // Termin verschieben → Überschneidung erkennen
-  const erste = findeOption(Object.values(auswahl)[0]).option.termine[0];
-  const zweite = findeOption(Object.values(auswahl)[1]).option.termine[0];
+  const pflichtig = Object.values(auswahl).map((id) => findeOption(id)).filter((g) => !g.veranstaltung.anwesenheitOptional);
+  const erste = pflichtig[0].option.termine[0];
+  const zweite = pflichtig[1].option.termine[0];
   Object.assign(zweite, { rhythmus: erste.rhythmus, wochentag: erste.wochentag, von: erste.von, bis: erste.bis, start: '', ende: '' });
   wahr(varianteAusAuswahl(modulIds, auswahl).probleme.some((p) => p.startsWith('Überschneidung')), 'Überschneidung erwartet');
 
@@ -737,6 +740,225 @@ test('Beispieldaten: keine Variante mit überschneidenden Prüfungen', () => {
     }
   }
   wahr(erg.diagnose.some((d) => d.text.includes('„Datenanalyse“ und „Statistik II“')), 'Hinweis zur Überschneidung');
+});
+
+/* ---------- Pendeltage ---------- */
+
+test('Pendeltage: Tage mit weniger als 2 h Uni', () => {
+  setzeDaten({ module: [
+    M('A', 6, true, [V('Vorlesung', [O('', [T(1, '10:00', '11:30')])])]), // Mo 1,5 h → Pendeltag
+    M('B', 6, true, [V('Vorlesung', [O('', [T(2, '10:00', '12:00')])])]), // Di 2 h → kein Pendeltag
+    M('C', 6, true, [V('Vorlesung', [O('', [T(3, '10:00', '11:00'), T(3, '10:30', '11:30')])])]), // Mi überlappend 1,5 h
+  ], einstellungen: { ectsZiel: 0 } });
+  const erg = berechneVarianten();
+  gleich(Math.round(erg.varianten[0].kennzahlen.pendeltageProWoche * 100) / 100, 2, 'Mo + Mi:');
+  daten.einstellungen.pendeltagSchwelle = 1.5;
+  gleich(berechneVarianten().varianten[0].kennzahlen.pendeltageProWoche, 0, 'Schwelle 1,5 h:');
+});
+
+test('Pendeltage: Sortierkriterium und Standard „aus“', () => {
+  const geladen = normalisiereDaten({ einstellungen: { prioritaeten: [{ schluessel: 'tage', aktiv: true }] } });
+  gleich(geladen.einstellungen.prioritaeten.find((p) => p.schluessel === 'pendel').aktiv, false, 'neues Kriterium aus:');
+  gleich(geladen.einstellungen.prioritaeten.find((p) => p.schluessel === 'beginn').aktiv, true, 'alte Kriterien an:');
+  setzeDaten({
+    module: [M('A', 6, true, [V('Übung', [O('kurz', [T(1, '10:00', '11:00')]), O('lang', [T(2, '10:00', '13:00')])])])],
+    einstellungen: { ectsZiel: 0, prioritaeten: [{ schluessel: 'pendel', aktiv: true }] },
+  });
+  const erg = berechneVarianten();
+  gleich(erg.optionen[erg.varianten[0].optionen[0]].option.name, 'lang', 'ohne Pendeltag zuerst:');
+});
+
+test('Pendeltage: Markierung im Wochenraster', () => {
+  setzeDaten({ module: [] });
+  const tage = pendeltagWochentage([
+    { wochentag: 1, start: 600, ende: 660 },
+    { wochentag: 2, start: 600, ende: 720 },
+    { wochentag: 3, start: 600, ende: 660, block: true },
+  ]);
+  gleich([...tage], [1]);
+});
+
+/* ---------- Backup-Erinnerung ---------- */
+
+test('Backup-Erinnerung: wann sie erscheint', () => {
+  const tag = MS_PRO_TAG;
+  const jetzt = 100 * tag;
+  gleich(backupErinnerungFaellig({}, 14, jetzt, true), false, 'alles gesichert:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 13 * tag }, 14, jetzt, true), false, '13 Tage:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 14 * tag }, 14, jetzt, true), true, '14 Tage:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag }, 0, jetzt, true), false, 'abgeschaltet:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag }, 14, jetzt, false), false, 'ohne Daten:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag, spaeterBis: jetzt + tag }, 14, jetzt, true), false, 'später:');
+  gleich(backupErinnerungFaellig({ ungesichertSeit: jetzt - 30 * tag, spaeterBis: jetzt - 1 }, 14, jetzt, true), true, 'später abgelaufen:');
+});
+
+/* ---------- Anwesenheit optional ---------- */
+
+test('Anwesenheit optional: Überschneidung erlaubt, nur Hinweis', () => {
+  const aufzeichnung = { ...V('Vorlesung', [O('', [T(1, '10:00', '12:00')])]), anwesenheitOptional: true };
+  setzeDaten({ module: [
+    M('A', 6, true, [aufzeichnung]),
+    M('B', 6, true, [V('Seminar', [O('', [T(1, '11:00', '13:00')])])]),
+  ], einstellungen: { ectsZiel: 0 } });
+  const erg = berechneVarianten();
+  gleich(erg.varianten.length, 1, 'Variante trotz Überschneidung:');
+  const infos = erg.varianten[0].optionen.map((n) => erg.optionen[n]);
+  const hinweise = optionaleUeberschneidungen(infos);
+  gleich(hinweise.length, 1, 'ein Hinweis:');
+  wahr(hinweise[0].includes(' Termine)'), 'Anzahl genannt: ' + hinweise[0]);
+});
+
+test('Anwesenheit optional: zählt standardmäßig nicht in Kennzahlen', () => {
+  const aufzeichnung = { ...V('Vorlesung', [O('', [T(5, '08:00', '10:00')])]), anwesenheitOptional: true };
+  setzeDaten({ module: [
+    M('A', 6, true, [aufzeichnung, V('Übung', [O('', [T(2, '10:00', '12:00')])])]),
+  ], einstellungen: { ectsZiel: 0 } });
+  gleich(berechneVarianten().varianten[0].kennzahlen.tageProWoche, 1, 'nur Di:');
+  daten.einstellungen.optionaleInKennzahlen = true;
+  gleich(berechneVarianten().varianten[0].kennzahlen.tageProWoche, 2, 'mit Fr:');
+});
+
+test('Anwesenheit optional: darf in geblockter Zeit liegen', () => {
+  const aufzeichnung = { ...V('Vorlesung', [O('', [T(1, '10:00', '12:00')])]), anwesenheitOptional: true };
+  setzeDaten({
+    module: [M('A', 6, true, [aufzeichnung])],
+    geblockteZeiten: [{ name: 'Arbeit', art: 'woechentlich', wochentag: 1, ganztags: true, aktiv: true }],
+    einstellungen: { ectsZiel: 0 },
+  });
+  const erg = berechneVarianten();
+  gleich(erg.varianten.length, 1);
+  const hinweise = optionaleUeberschneidungen(erg.varianten[0].optionen.map((n) => erg.optionen[n]));
+  wahr(hinweise.some((h) => h.includes('„Arbeit“')), 'Hinweis zur Arbeit');
+  gleich(normalisiereDaten({ module: [{ veranstaltungen: [{}] }] }).module[0].veranstaltungen[0].anwesenheitOptional, false, 'Standard:');
+});
+
+/* ---------- Variante teilen ---------- */
+
+test('Teilen: Paket enthält nur gewählte Gruppen, keine Notizen und geblockten Zeiten', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  const erg = berechneVarianten();
+  const v = erg.varianten[0];
+  const infos = v.optionen.map((n) => erg.optionen[n]);
+  const paket = teilPaketErstellen('Test', v.module, infos);
+  const text = JSON.stringify(paket);
+  wahr(!text.includes('Übungsgruppe bis 2. Vorlesungswoche'), 'keine Notizen');
+  wahr(!text.includes('Nebenjob'), 'keine geblockten Zeiten');
+  for (const m of paket.m) for (const va of m.veranstaltungen) gleich(va.optionen.length, 1, m.name + ':');
+
+  // Zurücklesen ergibt dieselbe Variante
+  const eigene = daten;
+  const gelesen = teilPaketLesen(JSON.parse(text));
+  daten = gelesen.daten;
+  const nachgebaut = varianteAusAuswahl(gelesen.modulIds, gelesen.auswahl);
+  gleich(nachgebaut.probleme, [], 'Probleme:');
+  gleich(nachgebaut.ects, v.ects, 'ECTS:');
+  gleich(nachgebaut.kennzahlen.tageProWoche, v.kennzahlen.tageProWoche, 'Tage:');
+  gleich(nachgebaut.module.map((m) => m.name), v.module.map((m) => m.name), 'Module:');
+  gleich(pruefungsplan(nachgebaut.module).eintraege.length, pruefungsplan(v.module).eintraege.length, 'Prüfungen:');
+  daten = eigene;
+});
+
+test('Teilen: ungültige Pakete werden abgelehnt', () => {
+  wahr(teilPaketLesen(null).fehler, 'null');
+  wahr(teilPaketLesen({ a: 'xyz', m: [] }).fehler, 'falsche Kennung');
+  wahr(teilPaketLesen({ a: 'spp', v: 9, m: [] }).fehler, 'neuere Version');
+});
+
+test('Teilen: Übernehmen legt neue Module und einen Favoriten an', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  const erg = berechneVarianten();
+  const v = erg.varianten[0];
+  const paket = teilPaketErstellen('Geteilt', v.module, v.optionen.map((n) => erg.optionen[n]));
+  const gelesen = teilPaketLesen(paket);
+  setzeDaten({ module: [] });
+  daten.einstellungen.semesterStart = '';
+  daten.einstellungen.semesterEnde = '';
+  uebernimmGeteilteVariante(gelesen);
+  gleich(daten.module.length, v.module.length, 'Module:');
+  gleich(daten.favoriten.length, 1, 'Favorit:');
+  gleich(daten.einstellungen.semesterStart, '2026-10-12', 'Semester übernommen:');
+  const fav = daten.favoriten[0];
+  gleich(varianteAusAuswahl(fav.modulIds, fav.auswahl).probleme, [], 'Favorit gültig:');
+  wahr(!daten.module.some((m) => gelesen.modulIds.includes(m.id)), 'neue IDs');
+});
+
+/* ---------- Weiche Wünsche ---------- */
+
+test('Wünsche: Abzug nach Minuten und Gewicht, nichts wird ausgeschlossen', () => {
+  setzeDaten({
+    module: [M('A', 6, true, [V('Übung', [O('Fr', [T(5, '10:00', '12:00')]), O('Di früh', [T(2, '08:00', '10:00')]), O('Di', [T(2, '10:00', '12:00')])])])],
+    einstellungen: { ectsZiel: 0, prioritaeten: [{ schluessel: 'wuensche', aktiv: true }] },
+  });
+  daten.wuensche = normalisiereDaten({ wuensche: [
+    { name: 'Freitag frei', wochentage: [5], ganztags: true, gewicht: 'stark' },
+    { name: 'Nicht vor 10', wochentage: [1, 2, 3, 4, 5], ganztags: false, von: '00:00', bis: '10:00', gewicht: 'leicht' },
+  ] }).wuensche;
+  const erg = berechneVarianten();
+  gleich(erg.anzahl, 3, 'alle Varianten bleiben:');
+  const namen = erg.varianten.map((v) => erg.optionen[v.optionen[0]].option.name);
+  gleich(namen, ['Di', 'Di früh', 'Fr'], 'Reihenfolge:');
+  const k = (i) => erg.varianten[i].kennzahlen;
+  gleich(k(0).wunschPunkte, 0, 'Di ohne Abzug:');
+  gleich(k(1).wunschPunkte, 2, 'Di früh: 2 h × leicht:');
+  gleich(k(2).wunschPunkte, 8, 'Fr: 2 h × stark:');
+  gleich(k(2).wunschVerstoesse.map((v) => v.wunsch.name), ['Freitag frei']);
+  gleich(k(2).wunschVerstoesse[0].proWoche, 1, 'einmal pro Woche:');
+});
+
+test('Wünsche: alte Daten bekommen leere Liste, Kriterium ist an', () => {
+  const geladen = normalisiereDaten({ einstellungen: { prioritaeten: [{ schluessel: 'ects', aktiv: true }] } });
+  gleich(geladen.wuensche, []);
+  gleich(geladen.einstellungen.prioritaeten.find((p) => p.schluessel === 'wuensche').aktiv, true);
+});
+
+/* ---------- Studienverlauf ---------- */
+
+test('Studienverlauf: ECTS je Bereich, Semester und Status', () => {
+  const verlauf = normalisiereStudienverlauf({
+    gesamtEcts: 120, semesterAnzahl: 4,
+    bereiche: [{ id: 'b1', name: 'Pflicht', sollEcts: 30 }, { id: 'b2', name: 'Wahl', sollEcts: 90 }],
+    module: [
+      { name: 'A', ects: 6, bereichId: 'b1', semester: 1, status: 'bestanden', note: '1,7' },
+      { name: 'B', ects: 4, bereichId: 'b1', semester: 1, status: 'bestanden', note: '2,3' },
+      { name: 'C', ects: 6, bereichId: 'b2', semester: 2, status: 'belegt' },
+      { name: 'D', ects: 5, bereichId: 'gibtsnicht', semester: 0, status: 'unbekannt' },
+    ],
+  });
+  gleich(verlauf.module[3].bereichId, '', 'unbekannter Bereich entfernt:');
+  gleich(verlauf.module[3].status, 'geplant', 'unbekannter Status → geplant:');
+  const a = werteStudienverlaufAus(verlauf);
+  gleich([a.gesamt.bestanden, a.gesamt.belegt, a.gesamt.geplant], [10, 6, 5], 'Gesamt:');
+  gleich(a.bereiche.map((b) => b.summe), [10, 6, 5], 'je Bereich (inkl. ohne Bereich):');
+  gleich(a.semester.map((s) => s.ects), [10, 6, 0, 0], 'je Semester:');
+  gleich(a.offen.length, 1, 'offen:');
+  wahr(a.hinweise.some((h) => h.includes('„Pflicht“: Es fehlen noch 20')), 'Hinweis fehlende ECTS');
+});
+
+test('Studienverlauf: Notenschnitt gewichtet und abgeschnitten', () => {
+  const verlauf = normalisiereStudienverlauf({ module: [
+    { name: 'A', ects: 6, status: 'bestanden', note: '1,7' },
+    { name: 'B', ects: 4, status: 'bestanden', note: '2,3' },
+    { name: 'C', ects: 5, status: 'bestanden', note: '' }, // ohne Note
+    { name: 'D', ects: 5, status: 'belegt', note: '1,0' }, // nicht bestanden → zählt nicht
+  ] });
+  const s = werteStudienverlaufAus(verlauf).schnitt;
+  gleich(Math.round(s.genau * 1000) / 1000, 1.94, 'genau:');
+  gleich(s.abgeschnitten, 1.9, 'abgeschnitten:');
+  gleich(s.ects, 10, 'ECTS mit Note:');
+  gleich(noteAbgeschnitten(2.0), 2, '2,0 bleibt 2,0:');
+  gleich(leseNote('6'), null, 'ungültige Note:');
+});
+
+test('Studienverlauf: Übernahme aus einer Variante überspringt Vorhandenes', () => {
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({ bereiche: [{ id: 'b1', name: 'Pflicht', sollEcts: 30 }],
+    module: [{ name: 'Statistik', ects: 6, semester: 1 }] });
+  const module = [{ id: 'm1', name: 'statistik ', ects: 6 }, { id: 'm2', name: 'Ethik', ects: 4, nummer: 'W-15' }];
+  const erg = uebernimmInStudienverlauf(module, 2, { m2: 'b1' });
+  gleich(erg, { neu: ['Ethik'], uebersprungen: ['statistik '] });
+  const ethik = daten.studienverlauf.module.find((m) => m.name === 'Ethik');
+  gleich([ethik.semester, ethik.status, ethik.bereichId, ethik.nummer], [2, 'belegt', 'b1', 'W-15']);
+  gleich(normalisiereDaten({}).studienverlauf.gesamtEcts, 120, 'Standard für alte Daten:');
 });
 
 /* ---------- Ergebnis anzeigen ---------- */

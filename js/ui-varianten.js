@@ -156,6 +156,15 @@ function steuerungHtml() {
           </div>
           <label class="auswahl"><input type="checkbox" data-aktion="varianten-schalter" data-feld="nurZielErreicht"${e.nurZielErreicht ? ' checked' : ''}>
             nur Varianten, die das Ziel erreichen</label>
+          <h4>Pendeltage</h4>
+          <div class="feldreihe">
+            <label class="feld schmal">Pendeltag unter (h)
+              <input type="number" min="0" max="12" step="0.5" inputmode="decimal" data-aktion="varianten-zahl" data-feld="pendeltagSchwelle" value="${escapeHtml(e.pendeltagSchwelle)}">
+            </label>
+          </div>
+          <p class="hilfe">Uni-Tage mit weniger Unizeit werden markiert – die Fahrt lohnt sich kaum.</p>
+          <label class="auswahl"><input type="checkbox" data-aktion="varianten-schalter" data-feld="optionaleInKennzahlen"${e.optionaleInKennzahlen ? ' checked' : ''}>
+            Termine ohne Anwesenheitspflicht in Kennzahlen einrechnen</label>
         </div>
         <div>
           <h4>Sortierung (wichtigstes zuerst)</h4>
@@ -223,7 +232,9 @@ function kennzahlenKurz(variante) {
 // "Ø 3 Tage + 6 Blocktage · Ø 2 h frei · Ø ab 10:00" (auch für Favoriten)
 function kennzahlenText(k) {
   return `Ø ${formatZahl(k.tageProWoche)} Tage` + (k.blockTage ? ` + ${blocktageText(k.blockTage)}` : '') +
-    ` · Ø ${formatZahl(k.freistundenProWoche)} h frei` + (k.beginn !== null ? ` · Ø ab ${minutenZuZeit(Math.round(k.beginn))}` : '');
+    ` · Ø ${formatZahl(k.freistundenProWoche)} h frei` + (k.beginn !== null ? ` · Ø ab ${minutenZuZeit(Math.round(k.beginn))}` : '') +
+    (k.pendeltageProWoche > 0.05 ? ` · Ø ${formatZahl(k.pendeltageProWoche)} Pendeltage` : '') +
+    (k.wunschVerstoesse && k.wunschVerstoesse.length ? ` · ${k.wunschVerstoesse.length} ${k.wunschVerstoesse.length === 1 ? 'Wunsch' : 'Wünsche'} verletzt` : '');
 }
 
 function blocktageText(anzahl) {
@@ -277,9 +288,12 @@ function variantenDetailHtml() {
             : '<button class="knopf" data-aktion="favorit-speichern">☆ Als Favorit speichern</button>'}
           <button class="knopf" data-aktion="variante-ics">📅 Kalender-Export (.ics)</button>
           <button class="knopf" data-aktion="variante-drucken" title="Im Druckdialog „Als PDF speichern“ wählen">🖨 Drucken / PDF</button>
+          <button class="knopf" data-aktion="variante-teilen">🔗 Teilen</button>
+          <button class="knopf" data-aktion="variante-studienverlauf" title="Module dieser Variante in den Studienverlauf eintragen">🎓 In Studienverlauf</button>
         </div>
       </div>
       ${kennzahlenHtml(variante.ects, ziel, k)}
+      ${optionalHinweisHtml(infos)}
       <label class="feld wochen-wahl">Ansicht
         <select data-aktion="woche-waehlen">${optionenHtml(wochen, String(gewaehlteWoche))}</select>
       </label>
@@ -290,26 +304,48 @@ function variantenDetailHtml() {
     </div>`;
 }
 
+// Überschneidungen von Terminen ohne Anwesenheitspflicht (auch für Favoriten)
+function optionalHinweisHtml(infos) {
+  const hinweise = optionaleUeberschneidungen(infos);
+  if (!hinweise.length) return '';
+  return `<details class="hinweis info"><summary>${hinweise.length} ${hinweise.length === 1 ? 'Überschneidung' : 'Überschneidungen'} mit Terminen ohne Anwesenheitspflicht (erlaubt)</summary>
+    <ul>${hinweise.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul></details>`;
+}
+
 // Kacheln mit den wichtigsten Kennzahlen
+// ziel = null: ohne ECTS-Ziel (z. B. bei einer geteilten Variante)
 function kennzahlenHtml(ects, ziel, k) {
-  const zielErreicht = ects >= ziel;
+  const ectsKachel = ziel === null
+    ? `<div class="kachel"><span class="wert">${formatZahl(ects)}</span><span class="name">ECTS</span></div>`
+    : `<div class="kachel ${ects >= ziel ? 'gut' : 'schlecht'}"><span class="wert">${formatZahl(ects)}</span><span class="name">ECTS (Ziel ${formatZahl(ziel)})</span></div>`;
   return `
     <div class="kennzahlen">
-      <div class="kachel ${zielErreicht ? 'gut' : 'schlecht'}"><span class="wert">${formatZahl(ects)}</span><span class="name">ECTS (Ziel ${formatZahl(ziel)})</span></div>
+      ${ectsKachel}
       <div class="kachel"><span class="wert">${formatZahl(k.tageProWoche)}</span>
         <span class="name">Ø Uni-Tage/Woche${k.blockTage ? '<br>+ ' + blocktageText(k.blockTage) + ' im Semester' : ''}</span></div>
       <div class="kachel"><span class="wert">${formatZahl(k.freistundenProWoche)} h</span><span class="name">Ø Freistunden/Woche</span></div>
       <div class="kachel"><span class="wert">${k.beginn !== null ? minutenZuZeit(Math.round(k.beginn)) : '–'}</span>
         <span class="name">Ø Beginn${k.fruehesterBeginn !== null ? ' (frühester ' + minutenZuZeit(k.fruehesterBeginn) + ')' : ''}</span></div>
+      <div class="kachel${k.pendeltageProWoche > 0.05 ? ' warnung' : ''}"><span class="wert">${formatZahl(k.pendeltageProWoche)}</span>
+        <span class="name">Ø Pendeltage/Woche<br>(unter ${formatZahl(leseZahl(daten.einstellungen.pendeltagSchwelle, 2))} h Uni)</span></div>
     </div>
+    ${wunschZeileHtml(k)}
     <p class="hilfe kennzahlen-hinweis">${KENNZAHLEN_HINWEIS}</p>`;
+}
+
+// "Wünsche: Freitag frei (Ø 1×/Woche) nicht erfüllt" – nur wenn Wünsche eingetragen sind
+function wunschZeileHtml(k) {
+  if (!daten.wuensche || !daten.wuensche.some((w) => w.aktiv)) return '';
+  if (!k.wunschVerstoesse || k.wunschVerstoesse.length === 0) return '<p class="wunsch-zeile gut">✓ Alle Wünsche erfüllt</p>';
+  return '<p class="wunsch-zeile">Nicht erfüllt: ' + k.wunschVerstoesse
+    .map((v) => `<strong>${escapeHtml(v.wunsch.name)}</strong> (Ø ${formatZahl(v.proWoche)}×/Woche)`).join(', ') + '</p>';
 }
 
 // Liste der belegten Module/Veranstaltungen und der nicht belegten Wahlmodule
 function belegungHtml(module, infos) {
   const belegt = module.map((modul) => {
     const zeilen = infos.filter((info) => info.modul === modul).map((info) => `
-      <li>${escapeHtml(veranstaltungName(info.veranstaltung))}${info.option.name ? ' <strong>' + escapeHtml(info.option.name) + '</strong>' : ''}:
+      <li>${escapeHtml(veranstaltungName(info.veranstaltung))}${info.option.name ? ' <strong>' + escapeHtml(info.option.name) + '</strong>' : ''}${info.optional ? ' <span class="abzeichen optional">Anwesenheit optional</span>' : ''}:
         ${info.option.termine.map((t) => escapeHtml(beschreibeTermin(t))).join('; ')}</li>`).join('');
     return `
       <li class="belegung-modul">

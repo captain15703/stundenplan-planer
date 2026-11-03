@@ -122,6 +122,8 @@ main {
   padding: 10px 16px;
   margin: 0;
 }
+.banner-backup:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.banner-backup .knopf-reihe { margin: 0; }
 .hinweis {
   background: var(--warnung-hg);
   border: 1px solid var(--warnung-rand);
@@ -256,6 +258,7 @@ main {
 }
 .abzeichen.pflicht { background: var(--akzent-hell); color: var(--akzent); }
 .abzeichen.wahl { background: var(--flaeche-2); color: var(--text-gedimmt); }
+.abzeichen.optional { background: var(--flaeche-2); color: var(--text-gedimmt); text-transform: none; letter-spacing: 0; }
 .ects { font-weight: 600; font-size: .9rem; white-space: nowrap; }
 
 .notizen { margin-top: 6px; font-size: .9rem; }
@@ -458,6 +461,7 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
 .kachel .name { font-size: .8rem; color: var(--text-gedimmt); }
 .kachel.gut .wert { color: var(--erfolg); }
 .kachel.schlecht .wert { color: var(--gefahr); }
+.kachel.warnung { background: var(--warnung-hg); box-shadow: inset 0 0 0 1px var(--warnung-rand); }
 
 .wochen-wahl { max-width: 340px; }
 .unterueberschrift { margin: 16px 0 6px; font-size: .95rem; }
@@ -535,6 +539,7 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
 .termin-block strong { font-size: .76rem; hyphens: auto; overflow-wrap: break-word; }
 .termin-block span, .termin-block em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .termin-block em { font-style: normal; font-weight: 600; opacity: .9; }
+.termin-block.optional { opacity: .55; outline: 1px dashed currentColor; outline-offset: -3px; }
 .termin-block.gestreift {
   background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .28) 0 6px, transparent 6px 12px);
 }
@@ -575,6 +580,8 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
   border: 3px solid var(--farbe);
   box-shadow: 0 0 0 2px var(--gefahr);
 }
+.raster-kopf .kopf-pendel { color: inherit; font-weight: 600; }
+.raster-kopf.pendel { background: var(--warnung-hg); }
 .raster-kopf .kopf-pruefung { color: var(--gefahr); font-weight: 600; overflow-wrap: anywhere; }
 
 /* ---------- Breitere Bildschirme ---------- */
@@ -586,7 +593,7 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
   main { padding: 20px 24px; }
   .steuerung-inhalt { grid-template-columns: 1fr 1fr; }
   .steuerung-breit { grid-column: 1 / -1; }
-  .kennzahlen { grid-template-columns: repeat(4, 1fr); }
+  .kennzahlen { grid-template-columns: repeat(5, 1fr); }
   .raster { font-size: .76rem; }
 }
 
@@ -640,3 +647,53 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
   .raster-ecke, .raster-kopf { position: static; }
   .pruefungsliste li, .belegung-modul, .blockliste li { break-inside: avoid; }
 }
+
+/* ---------- Geteilte Variante (per Link) ---------- */
+.geteilt { max-width: 1200px; margin: 0 auto; padding: 16px; }
+body.geteilt-modus main, body.geteilt-modus .tabs { display: none; }
+
+/* ---------- Wünsche ---------- */
+.abstand-gross { margin-top: 28px; }
+.vorlagen { align-items: center; margin-bottom: 12px; }
+.tage-auswahl { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.wunsch-zeile { margin: 6px 0 0; font-size: .9rem; }
+.wunsch-zeile.gut { color: var(--erfolg); }
+
+/* ---------- Studienverlauf ---------- */
+.verlauf-kennzahlen .wert { white-space: nowrap; }
+.fortschritt {
+  position: relative;
+  display: flex;
+  height: 12px;
+  margin: 6px 0 4px;
+  border-radius: 999px;
+  background: var(--flaeche-2);
+  overflow: hidden;
+}
+.fortschritt .teil { display: block; height: 100%; }
+.teil.bestanden, .punkt.bestanden { background: var(--erfolg); }
+.teil.belegt, .punkt.belegt { background: var(--akzent); }
+.teil.geplant, .punkt.geplant { background: var(--akzent-hell); box-shadow: inset 0 0 0 1px var(--akzent); }
+.soll-marke { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
+.legende { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 0; }
+.legende .punkt { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.bereich-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.bereich-zeile { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.semester-raster { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); margin-bottom: 14px; }
+.semester-raster .karte { margin-bottom: 0; }
+.verlauf-module { list-style: none; padding: 0; margin: 8px 0 10px; display: grid; gap: 6px; }
+.verlauf-modul-knopf {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  padding: 8px 10px; font: inherit; text-align: left; color: inherit; cursor: pointer;
+  background: var(--flaeche-2); border: 1px solid transparent; border-left: 4px solid var(--akzent-hell); border-radius: 8px;
+}
+.verlauf-modul-knopf:hover { border-color: var(--linie); }
+.status-belegt .verlauf-modul-knopf { border-left-color: var(--akzent); }
+.status-bestanden .verlauf-modul-knopf { border-left-color: var(--erfolg); }
+.verlauf-modul-name { font-weight: 600; }
+.abzeichen.status { text-transform: none; letter-spacing: 0; background: var(--hintergrund); color: var(--text-gedimmt); }
+.status-bestanden .abzeichen.status { color: var(--erfolg); }
+.uebernahme-tabelle { width: 100%; border-collapse: collapse; }
+.uebernahme-tabelle td { padding: 6px 4px; border-bottom: 1px solid var(--linie); vertical-align: top; }
+.uebernahme-tabelle td:last-child { width: 45%; }
+.uebernahme-tabelle select { width: 100%; }

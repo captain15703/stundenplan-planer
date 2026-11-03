@@ -2,6 +2,8 @@
    ui-zeiten.js – Tab "Geblockte Zeiten": feste Verpflichtungen wie
    Arbeit oder Sport, die in keiner Variante überschnitten werden dürfen
    (inklusive Pufferzeit davor und danach, z. B. für den Weg).
+   Darunter die weichen Wünsche (z. B. "Freitag frei"): Sie schließen
+   nichts aus, sondern beeinflussen nur die Sortierung der Varianten.
    ===================================================================== */
 
 'use strict';
@@ -35,8 +37,141 @@ function zeigeGeblockteZeiten() {
         </div>
       </article>`).join('') + '</div>';
   }
-  bereich.innerHTML = html;
+  bereich.innerHTML = html + wuenscheHtml();
 }
+
+/* ---------- Weiche Wünsche ---------- */
+
+// Vorlagen für häufige Wünsche (ein Klick legt sie an)
+const WUNSCH_VORLAGEN = [
+  { name: 'Freitag frei', wochentage: [5], ganztags: true, gewicht: 'mittel' },
+  { name: 'Nicht vor 10 Uhr', wochentage: [1, 2, 3, 4, 5], ganztags: false, von: '00:00', bis: '10:00', gewicht: 'leicht' },
+  { name: 'Mittagspause 12–13 Uhr', wochentage: [1, 2, 3, 4, 5], ganztags: false, von: '12:00', bis: '13:00', gewicht: 'leicht' },
+  { name: 'Montag frei', wochentage: [1], ganztags: true, gewicht: 'mittel' },
+];
+
+function beschreibeWunsch(wunsch) {
+  const tage = wunsch.wochentage.length === 5 && [1, 2, 3, 4, 5].every((t) => wunsch.wochentage.includes(t))
+    ? 'Mo–Fr'
+    : [...wunsch.wochentage].sort().map((t) => WOCHENTAGE_KURZ[t - 1]).join(', ');
+  return (tage || 'kein Tag gewählt') + ' · ' + (wunsch.ganztags ? 'ganztägig frei' : `keine Uni ${wunsch.von}–${wunsch.bis}`) +
+    ' · Gewicht ' + (WUNSCH_GEWICHTE[wunsch.gewicht] || WUNSCH_GEWICHTE.mittel).name;
+}
+
+function wuenscheHtml() {
+  const liste = daten.wuensche;
+  const vorlagen = WUNSCH_VORLAGEN
+    .filter((v) => !liste.some((w) => w.name === v.name))
+    .map((v, i) => `<button class="knopf klein" data-aktion="wunsch-vorlage" data-index="${WUNSCH_VORLAGEN.indexOf(v)}">+ ${escapeHtml(v.name)}</button>`)
+    .join('');
+  return `
+    <div class="bereich-kopf abstand-gross">
+      <div>
+        <h2>Wünsche</h2>
+        <p class="untertitel">Weiche Vorgaben: Sie schließen keine Variante aus, aber Varianten, die sie
+          besser erfüllen, kommen weiter nach oben (Sortierkriterium „Wünsche am besten erfüllt“).</p>
+      </div>
+      <button class="knopf" data-aktion="wunsch-neu">+ Wunsch</button>
+    </div>
+    ${vorlagen ? `<div class="knopf-reihe vorlagen"><span class="gedimmt klein">Schnell hinzufügen:</span>${vorlagen}</div>` : ''}
+    ${liste.length === 0 ? '<div class="leer-zustand"><p>Noch keine Wünsche.</p></div>' : '<div class="karten-liste">' + liste.map((wunsch) => `
+      <article class="karte block-karte wunsch-karte${wunsch.aktiv ? '' : ' inaktiv'}">
+        <div class="karte-kopf">
+          ${schalterHtml('wunsch-aktiv', wunsch.id, wunsch.aktiv, 'Wunsch aktiv')}
+          <h3 class="karte-titel">${escapeHtml(wunsch.name)}</h3>
+        </div>
+        <p class="termine-text">${escapeHtml(beschreibeWunsch(wunsch))}</p>
+        <div class="karte-aktionen">
+          <button class="knopf klein" data-aktion="wunsch-bearbeiten" data-id="${wunsch.id}">Bearbeiten</button>
+          <button class="knopf klein gefahr" data-aktion="wunsch-loeschen" data-id="${wunsch.id}">Löschen</button>
+        </div>
+      </article>`).join('') + '</div>'}`;
+}
+
+function findeWunsch(id) {
+  return daten.wuensche.find((w) => w.id === id);
+}
+
+aktionen['wunsch-vorlage'] = (werte) => {
+  daten.wuensche.push({ ...neuerWunsch(), ...kopie(WUNSCH_VORLAGEN[Number(werte.index)]) });
+  datenGeaendert();
+  zeigeMeldung('Wunsch hinzugefügt');
+};
+
+aktionen['wunsch-aktiv'] = (werte, element) => {
+  findeWunsch(werte.id).aktiv = element.checked;
+  datenGeaendert();
+};
+
+aktionen['wunsch-loeschen'] = (werte) => {
+  const wunsch = findeWunsch(werte.id);
+  if (!confirm(`Wunsch „${wunsch.name}“ löschen?`)) return;
+  daten.wuensche = daten.wuensche.filter((w) => w.id !== werte.id);
+  datenGeaendert();
+};
+
+aktionen['wunsch-neu'] = () => oeffneWunschDialog(null);
+aktionen['wunsch-bearbeiten'] = (werte) => oeffneWunschDialog(werte.id);
+
+function oeffneWunschDialog(id) {
+  const vorhanden = id ? findeWunsch(id) : null;
+  const w = vorhanden || neuerWunsch();
+
+  const dialog = zeigeDialog({
+    titel: vorhanden ? 'Wunsch bearbeiten' : 'Neuer Wunsch',
+    inhalt: `
+      <label class="feld">Bezeichnung *
+        <input name="name" value="${escapeHtml(w.name)}" placeholder="z. B. Freitag frei">
+      </label>
+      <fieldset class="feld">
+        <legend>An welchen Tagen?</legend>
+        <div class="tage-auswahl">${WOCHENTAGE_KURZ.map((tag, i) => `
+          <label class="auswahl"><input type="checkbox" name="tag${i + 1}"${w.wochentage.includes(i + 1) ? ' checked' : ''}> ${tag}</label>`).join('')}
+        </div>
+      </fieldset>
+      <label class="auswahl"><input type="checkbox" name="ganztags"${w.ganztags ? ' checked' : ''}> ganzer Tag frei</label>
+      <div data-zeige-bei="zeitfenster" class="feldreihe">
+        <label class="feld schmal">keine Uni von
+          <input type="time" name="von" value="${escapeHtml(w.von)}">
+        </label>
+        <label class="feld schmal">bis
+          <input type="time" name="bis" value="${escapeHtml(w.bis)}">
+        </label>
+      </div>
+      <label class="feld schmal">Wie wichtig?
+        <select name="gewicht">${optionenHtml(Object.entries(WUNSCH_GEWICHTE).map(([schluessel, g]) => [schluessel, g.name]), w.gewicht)}</select>
+      </label>
+      <p class="hilfe">Jede Stunde Uni im Wunsch-Zeitfenster zählt als Abzug – „stark“ viermal so viel wie „leicht“.
+        Beispiel „nicht vor 10 Uhr“: Mo–Fr, keine Uni von 00:00 bis 10:00.</p>`,
+    beimSpeichern(formular) {
+      const werte = formularWerte(formular);
+      const fehler = [];
+      const wochentage = [1, 2, 3, 4, 5, 6, 7].filter((t) => werte['tag' + t]);
+      if (!werte.name.trim()) fehler.push('Bitte eine Bezeichnung eingeben.');
+      if (wochentage.length === 0) fehler.push('Bitte mindestens einen Tag wählen.');
+      if (!werte.ganztags) {
+        if (!werte.von || !werte.bis) fehler.push('Bitte Beginn- und Endzeit angeben.');
+        else if (zeitZuMinuten(werte.von) >= zeitZuMinuten(werte.bis)) fehler.push('Die Endzeit muss nach der Anfangszeit liegen.');
+      }
+      if (fehler.length) return fehler;
+      const ziel = vorhanden || w;
+      Object.assign(ziel, {
+        name: werte.name.trim(), wochentage, ganztags: werte.ganztags, von: werte.von, bis: werte.bis, gewicht: werte.gewicht,
+      });
+      if (!vorhanden) daten.wuensche.push(ziel);
+      datenGeaendert();
+      return [];
+    },
+  });
+
+  const aktualisiere = () => {
+    $('[data-zeige-bei="zeitfenster"]', dialog).hidden = formularWerte($('form', dialog)).ganztags;
+  };
+  $('form', dialog).addEventListener('change', aktualisiere);
+  aktualisiere();
+}
+
+/* ---------- Geblockte Zeiten: Aktionen ---------- */
 
 function findeGeblockteZeit(id) {
   return daten.geblockteZeiten.find((block) => block.id === id);

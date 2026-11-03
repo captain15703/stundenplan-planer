@@ -14,9 +14,10 @@
     <h1>Stundenplan-Planer</h1>
     <nav class="tabs" role="tablist" aria-label="Bereiche">
       <button class="tab" role="tab" data-tab="module">Module</button>
-      <button class="tab" role="tab" data-tab="zeiten">Geblockte Zeiten</button>
+      <button class="tab" role="tab" data-tab="zeiten">Zeiten &amp; Wünsche</button>
       <button class="tab" role="tab" data-tab="varianten">Varianten</button>
       <button class="tab" role="tab" data-tab="favoriten">Favoriten</button>
+      <button class="tab" role="tab" data-tab="studium">Studium</button>
       <button class="tab" role="tab" data-tab="einstellungen">Einstellungen</button>
     </nav>
   </header>
@@ -26,12 +27,18 @@
     Änderungen gehen beim Schließen verloren – bitte ein Backup exportieren.
   </div>
 
+  <div id="hinweis-backup" class="banner banner-backup" role="status" hidden></div>
+
   <!-- Jeder Tab hat einen eigenen Bereich; der Inhalt wird per JavaScript erzeugt -->
+  <!-- Ansicht einer per Link geteilten Variante (siehe teilen.js) -->
+  <section id="geteilt" class="geteilt" hidden></section>
+
   <main>
     <section id="tab-module" class="tab-inhalt" hidden></section>
     <section id="tab-zeiten" class="tab-inhalt" hidden></section>
     <section id="tab-varianten" class="tab-inhalt" hidden></section>
     <section id="tab-favoriten" class="tab-inhalt" hidden></section>
+    <section id="tab-studium" class="tab-inhalt" hidden></section>
     <section id="tab-einstellungen" class="tab-inhalt" hidden></section>
   </main>
 
@@ -48,6 +55,7 @@
 
   <!-- Reihenfolge wichtig: Hilfsfunktionen zuerst, app.js zuletzt -->
   <script src="js/hilfen.js"></script>
+  <script src="js/studienverlauf.js"></script>
   <script src="js/speicher.js"></script>
   <script src="js/termine.js"></script>
   <script src="js/pruefungen.js"></script>
@@ -56,11 +64,13 @@
   <script src="js/ics.js"></script>
   <script src="js/druck.js"></script>
   <script src="js/backup.js"></script>
+  <script src="js/teilen.js"></script>
   <script src="js/beispieldaten.js"></script>
   <script src="js/ui-module.js"></script>
   <script src="js/ui-zeiten.js"></script>
   <script src="js/ui-varianten.js"></script>
   <script src="js/ui-favoriten.js"></script>
+  <script src="js/ui-studienverlauf.js"></script>
   <script src="js/ui-einstellungen.js"></script>
   <script src="js/app.js"></script>
 </body>

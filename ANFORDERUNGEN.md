@@ -33,6 +33,12 @@ Web-App zur Planung des Stundenplans im Masterstudium.
     - Prüfungen am selben Tag oder an aufeinanderfolgenden Tagen ergeben einen Hinweis.
     - Wiederholungstermine werden nicht geprüft.
 15. **Druckansicht / PDF** einer Variante: Wochenraster, Prüfungsplan sowie Module und Termine.
+16. **Pendeltage:** Uni-Tage mit weniger als einer einstellbaren Stundenzahl (Standard 2 h) als Kennzahl, abschaltbares Sortierkriterium (anfangs aus) und Markierung im Wochenraster.
+17. **Backup-Erinnerung:** Hinweis, wenn die erste ungesicherte Änderung älter als X Tage ist (Standard 14, 0 = aus); „Später“ blendet 3 Tage aus.
+18. **Anwesenheit optional** pro Lehrveranstaltung: Überschneidungen mit Terminen und geblockten Zeiten sind erlaubt und erscheinen als Hinweis mit Anzahl; standardmäßig nicht in den Kennzahlen (umschaltbar); im Raster blasser.
+19. **Variante per Link teilen:** komprimiert in der Adresse (`?teilen=`), nur belegte Module mit gewählter Gruppe, Prüfungen, Vorlesungszeitraum und vorlesungsfreie Tage (keine Notizen, geblockten Zeiten, Wünsche, Favoriten). Nur-Lese-Ansicht mit `.ics`-Export und „In meine Planung übernehmen“ (neue Module + Favorit).
+20. **Weiche Wünsche** mit Wochentagen, ganztägig oder Zeitfenster und Gewicht (leicht/mittel/stark): kein Ausschluss, sondern Abzug (Stunden × Gewicht pro normaler Woche) als Sortierkriterium; nicht erfüllte Wünsche werden je Variante genannt.
+21. **Studienverlaufsplan** (frei konfigurierbar): Bereiche mit Soll-ECTS, Module mit Semester, Status (geplant/belegt/bestanden) und Note; Fortschritt je Bereich, ECTS je Semester, nach ECTS gewichteter Notenschnitt (abgeschnitten); Übernahme der Module einer Variante.
 
 ## Präzisierungen (abgestimmt vor der Umsetzung)
 

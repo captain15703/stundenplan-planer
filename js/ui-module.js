@@ -105,6 +105,7 @@ function veranstaltungHtml(modul, veranstaltung) {
       <div class="zeile">
         ${schalterHtml('veranstaltung-aktiv', veranstaltung.id, veranstaltung.aktiv, 'Lehrveranstaltung aktiv')}
         <span class="va-titel">${escapeHtml(veranstaltungName(veranstaltung))}</span>
+        ${veranstaltung.anwesenheitOptional ? '<span class="abzeichen optional" title="Darf sich mit anderen Terminen überschneiden">Anwesenheit optional</span>' : ''}
         <span class="zeile-aktionen">
           <button class="knopf-text" data-aktion="veranstaltung-bearbeiten" data-modul="${modul.id}" data-id="${veranstaltung.id}">Bearbeiten</button>
           <button class="knopf-text gefahr" data-aktion="veranstaltung-loeschen" data-modul="${modul.id}" data-id="${veranstaltung.id}">Löschen</button>
@@ -372,6 +373,8 @@ function uebernehmeEingabe(feld, istAbgeschlossen) {
 
   if (name === 'typ' || name === 'titel') {
     entwurf[name] = feld.value;
+  } else if (name === 'anwesenheitOptional') {
+    entwurf.anwesenheitOptional = feld.checked;
   } else if (name === 'optionName') {
     entwurf.optionen[o].name = feld.value;
   } else if (name === 'datum') {
@@ -452,6 +455,12 @@ function zeichneEntwurf() {
         <input data-feld="titel" value="${escapeHtml(entwurf.titel)}" placeholder="z. B. Teil 1, Englisch …">
       </label>
     </div>
+    <label class="auswahl">
+      <input type="checkbox" data-feld="anwesenheitOptional"${entwurf.anwesenheitOptional ? ' checked' : ''}>
+      Anwesenheit nicht nötig (z. B. Aufzeichnung vorhanden)
+    </label>
+    <p class="hilfe">Solche Termine dürfen sich mit anderen Terminen und geblockten Zeiten überschneiden –
+      die App zeigt das nur als Hinweis. In Uni-Tage, Freistunden usw. zählen sie standardmäßig nicht mit.</p>
 
     <h3 class="editor-titel">${mehrere ? 'Alternativen – genau eine Gruppe wird belegt' : 'Termine'}</h3>
     ${entwurf.optionen.map((option, o) => optionEditorHtml(option, o, mehrere)).join('')}

@@ -40,6 +40,7 @@ function erstelleOptionInfo(modul, veranstaltung, option, freieTage) {
   vorkommen.sort((a, b) => a.tag - b.tag || a.start - b.start);
   return {
     modul, veranstaltung, option, vorkommen,
+    optional: Boolean(veranstaltung.anwesenheitOptional), // darf sich überschneiden
     // Für die Kennzahlen: regelmäßige Termine (als Zahlen) und Blocktermine getrennt
     zahlen: alsZahlen(vorkommen.filter((v) => v.termin.rhythmus !== 'block')),
     blockTage: [...new Set(vorkommen.filter((v) => v.termin.rhythmus === 'block').map((v) => v.tag))],
@@ -132,7 +133,12 @@ function normaleVorlesungswochen() {
 // Wochen ohne Termin zählen mit 0 Tagen mit – so ergeben z. B. 14-tägige
 // Termine oder Kurse nur in der ersten Semesterhälfte einen ehrlichen
 // Mittelwert. Blocktermine zählen nicht mit, sondern separat als "blockTage".
+// "Pendeltage" sind Uni-Tage, an denen insgesamt weniger als die eingestellte
+// Zahl an Stunden Uni stattfindet (die Fahrt lohnt sich kaum).
+// Veranstaltungen ohne Anwesenheitspflicht zählen nur mit, wenn das eingestellt ist.
 function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen()) {
+  const pendelSchwelle = leseZahl(daten.einstellungen.pendeltagSchwelle, 2) * 60;
+  if (!daten.einstellungen.optionaleInKennzahlen) optionInfos = optionInfos.filter((info) => !info.optional);
   // Alle regelmäßigen Vorkommen (als Zahlen, siehe oben) in den Puffer kopieren und sortieren
   let anzahl = 0;
   const blockTage = new Set();
@@ -148,6 +154,7 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
     anzahl += zahlen.length;
   }
   const alle = zahlenPuffer.subarray(0, anzahl).sort();
+  const wunsch = wunschBewertung(optionInfos, normaleWochen);
 
   // Gibt es keine einzige normale Woche (z. B. sehr kurzer Zeitraum),
   // wird wie früher über alle Wochen mit Terminen gemittelt.
@@ -159,6 +166,11 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
   let fruehesterBeginn = null;
   let aktuellerTag = null;
   let spaetestesEnde = 0;
+  let pendelTage = 0;
+  let tagesMinuten = 0; // Unizeit am aktuellen Tag (Überlappungen nur einmal gezählt)
+  const tagAbschliessen = () => {
+    if (aktuellerTag !== null && tagesMinuten < pendelSchwelle) pendelTage++;
+  };
 
   for (const zahl of alle) {
     // Zahl wieder in Tag, Start und Ende zerlegen
@@ -169,7 +181,9 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
 
     if (tag !== aktuellerTag) {
       // erster Termin an einem neuen Tag
+      tagAbschliessen();
       aktuellerTag = tag;
+      tagesMinuten = ende - start;
       uniTage++;
       wochen.add(montagVon(tag));
       beginnSumme += start;
@@ -179,19 +193,76 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
       // weiterer Termin am selben Tag: Lücke zum vorherigen messen
       const luecke = start - spaetestesEnde;
       if (luecke > MIN_LUECKE) lueckenMinuten += luecke;
+      tagesMinuten += Math.max(0, ende - Math.max(start, spaetestesEnde));
       spaetestesEnde = Math.max(spaetestesEnde, ende);
     }
   }
+  tagAbschliessen();
 
   const anzahlWochen = (nurNormaleWochen ? normaleWochen.size : wochen.size) || 1;
   return {
     wochen: nurNormaleWochen ? normaleWochen.size : wochen.size, // Anzahl gemittelter Wochen
     tageProWoche: uniTage / anzahlWochen,
     freistundenProWoche: lueckenMinuten / 60 / anzahlWochen,
+    pendeltageProWoche: pendelTage / anzahlWochen,
+    wunschPunkte: wunsch.punkte / anzahlWochen, // gewichtete Stunden pro Woche, die Wünschen widersprechen
+    wunschVerstoesse: wunsch.verstoesse.map((v) => ({ ...v, proWoche: v.anzahl / anzahlWochen })),
     beginn: uniTage ? beginnSumme / uniTage : null, // Ø Beginn in Minuten
     fruehesterBeginn,
     blockTage: blockTage.size, // Tage mit Blockterminen im ganzen Semester
   };
+}
+
+/* ---------- Weiche Wünsche ----------
+   Ein Wunsch (z. B. "Freitag frei", "nicht vor 10 Uhr") schließt nichts
+   aus. Jede Minute Uni, die in ein Wunsch-Zeitfenster fällt, kostet
+   Punkte (Minuten × Gewicht). Gezählt wird – wie bei den Kennzahlen –
+   nur in normalen Vorlesungswochen; Blocktermine zählen nicht.
+   Das Ergebnis jeder Option wird an ihr zwischengespeichert, denn die
+   Werte sind additiv: Die Punkte einer Variante sind die Summe ihrer Optionen.
+   ------------------------------------------------------------------ */
+
+function wunschFenster(wunsch) {
+  if (wunsch.ganztags) return { start: 0, ende: MINUTEN_PRO_TAG };
+  const start = zeitZuMinuten(wunsch.von);
+  const ende = zeitZuMinuten(wunsch.bis);
+  return start === null || ende === null || start >= ende ? null : { start, ende };
+}
+
+function wunschBewertungOption(info, normaleWochen) {
+  if (info.wunschCache && info.wunschCache.wochen === normaleWochen) return info.wunschCache;
+  const nurNormaleWochen = normaleWochen.size > 0;
+  const ergebnis = { wochen: normaleWochen, punkte: 0, anzahl: new Map() }; // anzahl: Wunsch → Vorkommen
+  for (const wunsch of daten.wuensche || []) {
+    if (!wunsch.aktiv) continue;
+    const fenster = wunschFenster(wunsch);
+    if (!fenster) continue;
+    const faktor = (WUNSCH_GEWICHTE[wunsch.gewicht] || WUNSCH_GEWICHTE.mittel).faktor;
+    for (const v of info.vorkommen) {
+      if (v.termin && v.termin.rhythmus === 'block') continue;
+      if (nurNormaleWochen && !normaleWochen.has(montagVon(v.tag))) continue;
+      if (!wunsch.wochentage.includes(wochentagVon(v.tag))) continue;
+      const minuten = Math.min(v.ende, fenster.ende) - Math.max(v.start, fenster.start);
+      if (minuten <= 0) continue;
+      ergebnis.punkte += minuten / 60 * faktor;
+      ergebnis.anzahl.set(wunsch, (ergebnis.anzahl.get(wunsch) || 0) + 1);
+    }
+  }
+  info.wunschCache = ergebnis;
+  return ergebnis;
+}
+
+// Summe über alle Optionen einer Variante: { punkte, verstoesse: [{ wunsch, anzahl }] }
+function wunschBewertung(optionInfos, normaleWochen) {
+  let punkte = 0;
+  const anzahl = new Map();
+  if (!daten.wuensche || daten.wuensche.length === 0) return { punkte, verstoesse: [] };
+  for (const info of optionInfos) {
+    const b = wunschBewertungOption(info, normaleWochen);
+    punkte += b.punkte;
+    for (const [wunsch, n] of b.anzahl) anzahl.set(wunsch, (anzahl.get(wunsch) || 0) + n);
+  }
+  return { punkte, verstoesse: [...anzahl].map(([wunsch, n]) => ({ wunsch, anzahl: n })) };
 }
 
 /* ---------- Sortierung ---------- */
@@ -231,6 +302,12 @@ function vergleicheVarianten(a, b) {
       case 'beginn': // später ist besser – deshalb b minus a
         ergebnis = mitToleranz((kb.beginn ?? MINUTEN_PRO_TAG) - (ka.beginn ?? MINUTEN_PRO_TAG), 5) ||
           mitToleranz((kb.fruehesterBeginn ?? MINUTEN_PRO_TAG) - (ka.fruehesterBeginn ?? MINUTEN_PRO_TAG), 1);
+        break;
+      case 'wuensche':
+        ergebnis = mitToleranz(ka.wunschPunkte - kb.wunschPunkte, 0.01);
+        break;
+      case 'pendel':
+        ergebnis = mitToleranz(ka.pendeltageProWoche - kb.pendeltageProWoche, 0.05);
         break;
     }
     if (ergebnis !== 0) return ergebnis;
@@ -281,7 +358,8 @@ function bereiteVor() {
       diagnose.push({ art: 'info', text: optionBezeichnung(info) + ': hat keine Termine im Zeitraum und wird ignoriert.' });
       continue;
     }
-    const kollision = ersteUeberschneidung(info.vorkommen, blockVorkommen);
+    // Ohne Anwesenheitspflicht darf eine Veranstaltung auch in geblockten Zeiten liegen
+    const kollision = info.optional ? null : ersteUeberschneidung(info.vorkommen, blockVorkommen);
     if (kollision) {
       diagnose.push({
         art: 'info',
@@ -385,6 +463,7 @@ function berechneVarianten() {
   for (let i = 0; i < optionen.length; i++) {
     for (let j = i + 1; j < optionen.length; j++) {
       if (optionen[i].veranstaltung === optionen[j].veranstaltung) continue; // schließen sich ohnehin aus
+      if (optionen[i].optional || optionen[j].optional) continue; // dürfen sich überschneiden (nur Hinweis)
       if (ersteUeberschneidung(optionen[i].vorkommen, optionen[j].vorkommen)) {
         konflikte[i].push(j);
         konflikte[j].push(i);
@@ -567,6 +646,7 @@ function varianteAusAuswahl(modulIds, auswahl) {
   // Überschneidungen untereinander und mit geblockten Zeiten (Daten könnten sich geändert haben)
   for (let i = 0; i < infos.length; i++) {
     for (let j = i + 1; j < infos.length; j++) {
+      if (infos[i].optional || infos[j].optional) continue; // nur Hinweis, siehe optionaleUeberschneidungen()
       if (ersteUeberschneidung(infos[i].vorkommen, infos[j].vorkommen)) {
         probleme.push('Überschneidung: ' + optionBezeichnung(infos[i]) + ' und ' + optionBezeichnung(infos[j]) + '.');
       }
@@ -580,6 +660,7 @@ function varianteAusAuswahl(modulIds, auswahl) {
       .flatMap((block) => vorkommenVonGeblockterZeit(block, vonTag, bisTag))
       .sort((a, b) => a.tag - b.tag || a.start - b.start);
     for (const info of infos) {
+      if (info.optional) continue;
       const kollision = ersteUeberschneidung(info.vorkommen, geblockt);
       if (kollision) probleme.push(optionBezeichnung(info) + ' kollidiert mit „' + kollision.b.block.name + '“.');
     }
@@ -592,6 +673,53 @@ function varianteAusAuswahl(modulIds, auswahl) {
     kennzahlen: berechneKennzahlen(infos),
     probleme: [...new Set(probleme)], // doppelte Meldungen entfernen
   };
+}
+
+/* ---------- Veranstaltungen ohne Anwesenheitspflicht ---------- */
+
+// Zählt, an wie vielen Vorkommen sich zwei sortierte Listen überschneiden
+function zaehleUeberschneidungen(listeA, listeB) {
+  let anzahl = 0;
+  let i = 0;
+  let j = 0;
+  while (i < listeA.length && j < listeB.length) {
+    const a = listeA[i];
+    const b = listeB[j];
+    if (a.tag < b.tag) { i++; continue; }
+    if (b.tag < a.tag) { j++; continue; }
+    if (a.start < b.ende && b.start < a.ende) anzahl++;
+    if (a.ende <= b.ende) i++; else j++;
+  }
+  return anzahl;
+}
+
+// Hinweise, wo sich Veranstaltungen ohne Anwesenheitspflicht mit anderen
+// Terminen oder geblockten Zeiten überschneiden (das ist erlaubt, man
+// schaut dann z. B. die Aufzeichnung). Liefert eine Liste von Texten.
+function optionaleUeberschneidungen(infos) {
+  const hinweise = [];
+  const optionale = infos.filter((info) => info.optional);
+  if (optionale.length === 0) return hinweise;
+  const anzahlText = (n) => n === 1 ? '1 Termin' : n + ' Termine';
+
+  for (const info of optionale) {
+    for (const andere of infos) {
+      if (andere === info || (andere.optional && infos.indexOf(andere) < infos.indexOf(info))) continue;
+      const anzahl = zaehleUeberschneidungen(info.vorkommen, andere.vorkommen);
+      if (anzahl) hinweise.push(`${optionBezeichnung(info)} überschneidet sich mit ${optionBezeichnung(andere)} (${anzahlText(anzahl)}).`);
+    }
+  }
+  const tage = optionale.flatMap((info) => info.vorkommen.map((v) => v.tag));
+  const geblockt = daten.geblockteZeiten.filter((b) => b.aktiv)
+    .flatMap((block) => vorkommenVonGeblockterZeit(block, Math.min(...tage), Math.max(...tage)))
+    .sort((a, b) => a.tag - b.tag || a.start - b.start);
+  for (const info of optionale) {
+    for (const block of daten.geblockteZeiten.filter((b) => b.aktiv)) {
+      const anzahl = zaehleUeberschneidungen(info.vorkommen, geblockt.filter((g) => g.block === block));
+      if (anzahl) hinweise.push(`${optionBezeichnung(info)} liegt in „${block.name}“ (${anzahlText(anzahl)}).`);
+    }
+  }
+  return hinweise;
 }
 
 // Hilft bei der Fehlersuche, wenn gar keine Variante gefunden wurde

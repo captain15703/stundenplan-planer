@@ -11,8 +11,10 @@
    │       └─ optionen[]           Auswahlgruppe: genau EINE wird belegt
    │           └─ termine[]            wöchentlich / 14-tägig / Block
    ├─ geblockteZeiten[]    z. B. Arbeit, Sport (mit Puffer)
+   ├─ wuensche[]           weiche Wünsche, z. B. "Freitag frei" (mit Gewicht)
    ├─ vorlesungsfrei[]     Feiertage, Weihnachtspause …
-   └─ favoriten[]          gespeicherte Varianten
+   ├─ favoriten[]          gespeicherte Varianten
+   └─ studienverlauf       Bereiche und Module über alle Semester (studienverlauf.js)
    ===================================================================== */
 
 'use strict';
@@ -34,6 +36,15 @@ const PRIORITAETEN = {
   tage: 'Wenigste Uni-Tage',
   freistunden: 'Wenigste Freistunden',
   beginn: 'Spätester Beginn',
+  pendel: 'Wenigste Pendeltage',
+  wuensche: 'Wünsche am besten erfüllt',
+};
+
+// Gewichte der weichen Wünsche: Minuten Überschneidung werden damit multipliziert
+const WUNSCH_GEWICHTE = {
+  leicht: { name: 'leicht', faktor: 1 },
+  mittel: { name: 'mittel', faktor: 2 },
+  stark: { name: 'stark', faktor: 4 },
 };
 
 // Farbpalette für neue Module (gut unterscheidbar)
@@ -58,11 +69,16 @@ function standardEinstellungen() {
     ectsZiel: 30,
     nurZielErreicht: true, // Varianten unter dem ECTS-Ziel ausblenden
     maxVarianten: 20, // so viele Varianten werden höchstens angezeigt
+    pendeltagSchwelle: 2, // Uni-Tage mit weniger Stunden Uni gelten als "Pendeltag"
+    backupErinnerungTage: 14, // Erinnerung ans Backup nach so vielen Tagen (0 = aus)
+    optionaleInKennzahlen: false, // Veranstaltungen ohne Anwesenheitspflicht in Uni-Tage usw. einrechnen?
     prioritaeten: [
       { schluessel: 'ects', aktiv: true },
       { schluessel: 'tage', aktiv: true },
       { schluessel: 'freistunden', aktiv: true },
       { schluessel: 'beginn', aktiv: true },
+      { schluessel: 'pendel', aktiv: false }, // neu: anfangs aus, damit sich nichts ungefragt ändert
+      { schluessel: 'wuensche', aktiv: true }, // wirkt nur, wenn Wünsche eingetragen sind
     ],
   };
 }
@@ -73,8 +89,10 @@ function leereDaten() {
     einstellungen: standardEinstellungen(),
     module: [],
     geblockteZeiten: [],
+    wuensche: [],
     vorlesungsfrei: [],
     favoriten: [],
+    studienverlauf: leererStudienverlauf(),
   };
 }
 
@@ -102,6 +120,7 @@ function neueVeranstaltung() {
     typ: 'Vorlesung',
     titel: '',
     aktiv: true,
+    anwesenheitOptional: false, // true = darf sich überschneiden (z. B. Aufzeichnung vorhanden)
     optionen: [neueOption('')],
   };
 }
@@ -147,6 +166,19 @@ function neueGeblockteZeit() {
   };
 }
 
+function neuerWunsch() {
+  return {
+    id: neueId('wunsch'),
+    name: '',
+    aktiv: true,
+    wochentage: [5], // 1 = Montag … 7 = Sonntag
+    ganztags: true,
+    von: '08:00',
+    bis: '10:00',
+    gewicht: 'mittel', // siehe WUNSCH_GEWICHTE
+  };
+}
+
 function neuePruefung() {
   return {
     id: neueId('pruefung'),
@@ -187,6 +219,7 @@ function datenSpeichern() {
   try {
     localStorage.setItem(SPEICHER_SCHLUESSEL, JSON.stringify(daten));
     speicherVerfuegbar = true;
+    merkeAenderung();
   } catch (fehler) {
     console.warn('Daten konnten nicht gespeichert werden:', fehler);
     speicherVerfuegbar = false;
@@ -209,12 +242,19 @@ function normalisiereDaten(roh) {
   const bekannt = Object.keys(PRIORITAETEN);
   const prioritaeten = (Array.isArray(einstellungen.prioritaeten) ? einstellungen.prioritaeten : [])
     .filter((p) => p && bekannt.includes(p.schluessel));
+  // Fehlende (z. B. in neueren Versionen hinzugekommene) Kriterien mit ihrem Standard-Schalter ergänzen
+  const standard = standardEinstellungen().prioritaeten;
   bekannt.forEach((schluessel) => {
-    if (!prioritaeten.some((p) => p.schluessel === schluessel)) prioritaeten.push({ schluessel, aktiv: true });
+    if (!prioritaeten.some((p) => p.schluessel === schluessel)) {
+      prioritaeten.push({ schluessel, aktiv: standard.find((p) => p.schluessel === schluessel)?.aktiv !== false });
+    }
   });
   einstellungen.prioritaeten = prioritaeten.map((p) => ({ schluessel: p.schluessel, aktiv: p.aktiv !== false }));
 
   // Enddaten vor dem Beginn (vertipptes Jahr) werden überall automatisch korrigiert
+  einstellungen.pendeltagSchwelle = Math.max(0, leseZahl(einstellungen.pendeltagSchwelle, 2));
+  einstellungen.backupErinnerungTage = Math.max(0, Math.round(leseZahl(einstellungen.backupErinnerungTage, 14)));
+
   einstellungen.semesterEnde = korrigiereEnddatum(einstellungen.semesterStart, einstellungen.semesterEnde);
 
   return {
@@ -228,6 +268,7 @@ function normalisiereDaten(roh) {
       veranstaltungen: liste(m.veranstaltungen).map((v) => ({
         ...neueVeranstaltung(),
         ...v,
+        anwesenheitOptional: Boolean(v.anwesenheitOptional),
         optionen: liste(v.optionen).map((o) => ({
           ...neueOption(''),
           ...o,
@@ -253,6 +294,13 @@ function normalisiereDaten(roh) {
       pufferNach: leseZahl(g.pufferNach, 0),
       datumBis: korrigiereEnddatum(g.datumVon, g.datumBis ?? ''),
     })),
+    wuensche: liste(quelle.wuensche).map((w) => ({
+      ...neuerWunsch(),
+      ...w,
+      wochentage: (Array.isArray(w.wochentage) ? w.wochentage : []).map(Number).filter((t) => t >= 1 && t <= 7),
+      ganztags: Boolean(w.ganztags),
+      gewicht: WUNSCH_GEWICHTE[w.gewicht] ? w.gewicht : 'mittel',
+    })),
     vorlesungsfrei: liste(quelle.vorlesungsfrei).map((f) => ({
       ...neueVorlesungsfreieZeit(),
       ...f,
@@ -267,6 +315,7 @@ function normalisiereDaten(roh) {
         modulIds: Array.isArray(f.modulIds) ? f.modulIds.map(String) : [],
         auswahl: { ...f.auswahl },
       })),
+    studienverlauf: normalisiereStudienverlauf(quelle.studienverlauf),
   };
 }
 
@@ -303,6 +352,7 @@ function findeOption(optionId) {
 
 // Gibt es überhaupt schon eingegebene Daten?
 function hatDaten() {
-  return daten.module.length > 0 || daten.geblockteZeiten.length > 0 ||
-    daten.vorlesungsfrei.length > 0 || daten.favoriten.length > 0;
+  return daten.module.length > 0 || daten.geblockteZeiten.length > 0 || daten.wuensche.length > 0 ||
+    daten.vorlesungsfrei.length > 0 || daten.favoriten.length > 0 ||
+    daten.studienverlauf.module.length > 0 || daten.studienverlauf.bereiche.length > 0;
 }

@@ -11,6 +11,7 @@ const TABS = {
   zeiten: () => zeigeGeblockteZeiten(),
   varianten: () => zeigeVariantenTab(),
   favoriten: () => zeigeFavoritenTab(),
+  studium: () => zeigeStudienverlauf(),
   einstellungen: () => zeigeEinstellungen(),
 };
 
@@ -78,7 +79,9 @@ window.addEventListener('hashchange', () => zeigeTab(location.hash.slice(1)));
 function start() {
   datenLaden();
   $('#hinweis-speicher').hidden = speicherVerfuegbar;
+  aktualisiereBackupErinnerung();
   zeigeTab(location.hash.slice(1) || 'module');
+  pruefeGeteiltenLink(); // ?teilen=… in der Adresse → geteilte Variante anzeigen
 }
 
 start();
