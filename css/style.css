@@ -647,3 +647,7 @@ dialog::backdrop { background: rgba(10, 15, 25, .5); }
   .raster-ecke, .raster-kopf { position: static; }
   .pruefungsliste li, .belegung-modul, .blockliste li { break-inside: avoid; }
 }
+
+/* ---------- Geteilte Variante (per Link) ---------- */
+.geteilt { max-width: 1200px; margin: 0 auto; padding: 16px; }
+body.geteilt-modus main, body.geteilt-modus .tabs { display: none; }

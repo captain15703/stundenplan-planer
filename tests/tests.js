@@ -832,6 +832,56 @@ test('Anwesenheit optional: darf in geblockter Zeit liegen', () => {
   gleich(normalisiereDaten({ module: [{ veranstaltungen: [{}] }] }).module[0].veranstaltungen[0].anwesenheitOptional, false, 'Standard:');
 });
 
+/* ---------- Variante teilen ---------- */
+
+test('Teilen: Paket enthält nur gewählte Gruppen, keine Notizen und geblockten Zeiten', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  const erg = berechneVarianten();
+  const v = erg.varianten[0];
+  const infos = v.optionen.map((n) => erg.optionen[n]);
+  const paket = teilPaketErstellen('Test', v.module, infos);
+  const text = JSON.stringify(paket);
+  wahr(!text.includes('Übungsgruppe bis 2. Vorlesungswoche'), 'keine Notizen');
+  wahr(!text.includes('Nebenjob'), 'keine geblockten Zeiten');
+  for (const m of paket.m) for (const va of m.veranstaltungen) gleich(va.optionen.length, 1, m.name + ':');
+
+  // Zurücklesen ergibt dieselbe Variante
+  const eigene = daten;
+  const gelesen = teilPaketLesen(JSON.parse(text));
+  daten = gelesen.daten;
+  const nachgebaut = varianteAusAuswahl(gelesen.modulIds, gelesen.auswahl);
+  gleich(nachgebaut.probleme, [], 'Probleme:');
+  gleich(nachgebaut.ects, v.ects, 'ECTS:');
+  gleich(nachgebaut.kennzahlen.tageProWoche, v.kennzahlen.tageProWoche, 'Tage:');
+  gleich(nachgebaut.module.map((m) => m.name), v.module.map((m) => m.name), 'Module:');
+  gleich(pruefungsplan(nachgebaut.module).eintraege.length, pruefungsplan(v.module).eintraege.length, 'Prüfungen:');
+  daten = eigene;
+});
+
+test('Teilen: ungültige Pakete werden abgelehnt', () => {
+  wahr(teilPaketLesen(null).fehler, 'null');
+  wahr(teilPaketLesen({ a: 'xyz', m: [] }).fehler, 'falsche Kennung');
+  wahr(teilPaketLesen({ a: 'spp', v: 9, m: [] }).fehler, 'neuere Version');
+});
+
+test('Teilen: Übernehmen legt neue Module und einen Favoriten an', () => {
+  daten = normalisiereDaten(beispieldatenErzeugen());
+  const erg = berechneVarianten();
+  const v = erg.varianten[0];
+  const paket = teilPaketErstellen('Geteilt', v.module, v.optionen.map((n) => erg.optionen[n]));
+  const gelesen = teilPaketLesen(paket);
+  setzeDaten({ module: [] });
+  daten.einstellungen.semesterStart = '';
+  daten.einstellungen.semesterEnde = '';
+  uebernimmGeteilteVariante(gelesen);
+  gleich(daten.module.length, v.module.length, 'Module:');
+  gleich(daten.favoriten.length, 1, 'Favorit:');
+  gleich(daten.einstellungen.semesterStart, '2026-10-12', 'Semester übernommen:');
+  const fav = daten.favoriten[0];
+  gleich(varianteAusAuswahl(fav.modulIds, fav.auswahl).probleme, [], 'Favorit gültig:');
+  wahr(!daten.module.some((m) => gelesen.modulIds.includes(m.id)), 'neue IDs');
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {

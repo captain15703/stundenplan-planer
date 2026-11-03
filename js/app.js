@@ -80,6 +80,7 @@ function start() {
   $('#hinweis-speicher').hidden = speicherVerfuegbar;
   aktualisiereBackupErinnerung();
   zeigeTab(location.hash.slice(1) || 'module');
+  pruefeGeteiltenLink(); // ?teilen=… in der Adresse → geteilte Variante anzeigen
 }
 
 start();

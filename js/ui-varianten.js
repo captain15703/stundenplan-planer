@@ -287,6 +287,7 @@ function variantenDetailHtml() {
             : '<button class="knopf" data-aktion="favorit-speichern">☆ Als Favorit speichern</button>'}
           <button class="knopf" data-aktion="variante-ics">📅 Kalender-Export (.ics)</button>
           <button class="knopf" data-aktion="variante-drucken" title="Im Druckdialog „Als PDF speichern“ wählen">🖨 Drucken / PDF</button>
+          <button class="knopf" data-aktion="variante-teilen">🔗 Teilen</button>
         </div>
       </div>
       ${kennzahlenHtml(variante.ects, ziel, k)}
@@ -310,11 +311,14 @@ function optionalHinweisHtml(infos) {
 }
 
 // Kacheln mit den wichtigsten Kennzahlen
+// ziel = null: ohne ECTS-Ziel (z. B. bei einer geteilten Variante)
 function kennzahlenHtml(ects, ziel, k) {
-  const zielErreicht = ects >= ziel;
+  const ectsKachel = ziel === null
+    ? `<div class="kachel"><span class="wert">${formatZahl(ects)}</span><span class="name">ECTS</span></div>`
+    : `<div class="kachel ${ects >= ziel ? 'gut' : 'schlecht'}"><span class="wert">${formatZahl(ects)}</span><span class="name">ECTS (Ziel ${formatZahl(ziel)})</span></div>`;
   return `
     <div class="kennzahlen">
-      <div class="kachel ${zielErreicht ? 'gut' : 'schlecht'}"><span class="wert">${formatZahl(ects)}</span><span class="name">ECTS (Ziel ${formatZahl(ziel)})</span></div>
+      ${ectsKachel}
       <div class="kachel"><span class="wert">${formatZahl(k.tageProWoche)}</span>
         <span class="name">Ø Uni-Tage/Woche${k.blockTage ? '<br>+ ' + blocktageText(k.blockTage) + ' im Semester' : ''}</span></div>
       <div class="kachel"><span class="wert">${formatZahl(k.freistundenProWoche)} h</span><span class="name">Ø Freistunden/Woche</span></div>

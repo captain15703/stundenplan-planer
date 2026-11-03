@@ -68,6 +68,7 @@ function zeigeFavoritenTab() {
         <div class="karte-aktionen">
           <button class="knopf klein" data-aktion="favorit-ics" data-id="${favorit.id}">📅 .ics</button>
           <button class="knopf klein" data-aktion="favorit-drucken" data-id="${favorit.id}" title="Im Druckdialog „Als PDF speichern“ wählen">🖨 PDF</button>
+          <button class="knopf klein" data-aktion="favorit-teilen" data-id="${favorit.id}">🔗 Teilen</button>
           <button class="knopf klein" data-aktion="favorit-umbenennen" data-id="${favorit.id}">Umbenennen</button>
           <button class="knopf klein gefahr" data-aktion="favorit-loeschen" data-id="${favorit.id}">Löschen</button>
         </div>
