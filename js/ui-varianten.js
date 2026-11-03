@@ -156,6 +156,13 @@ function steuerungHtml() {
           </div>
           <label class="auswahl"><input type="checkbox" data-aktion="varianten-schalter" data-feld="nurZielErreicht"${e.nurZielErreicht ? ' checked' : ''}>
             nur Varianten, die das Ziel erreichen</label>
+          <h4>Pendeltage</h4>
+          <div class="feldreihe">
+            <label class="feld schmal">Pendeltag unter (h)
+              <input type="number" min="0" max="12" step="0.5" inputmode="decimal" data-aktion="varianten-zahl" data-feld="pendeltagSchwelle" value="${escapeHtml(e.pendeltagSchwelle)}">
+            </label>
+          </div>
+          <p class="hilfe">Uni-Tage mit weniger Unizeit werden markiert – die Fahrt lohnt sich kaum.</p>
         </div>
         <div>
           <h4>Sortierung (wichtigstes zuerst)</h4>
@@ -223,7 +230,8 @@ function kennzahlenKurz(variante) {
 // "Ø 3 Tage + 6 Blocktage · Ø 2 h frei · Ø ab 10:00" (auch für Favoriten)
 function kennzahlenText(k) {
   return `Ø ${formatZahl(k.tageProWoche)} Tage` + (k.blockTage ? ` + ${blocktageText(k.blockTage)}` : '') +
-    ` · Ø ${formatZahl(k.freistundenProWoche)} h frei` + (k.beginn !== null ? ` · Ø ab ${minutenZuZeit(Math.round(k.beginn))}` : '');
+    ` · Ø ${formatZahl(k.freistundenProWoche)} h frei` + (k.beginn !== null ? ` · Ø ab ${minutenZuZeit(Math.round(k.beginn))}` : '') +
+    (k.pendeltageProWoche > 0.05 ? ` · Ø ${formatZahl(k.pendeltageProWoche)} Pendeltage` : '');
 }
 
 function blocktageText(anzahl) {
@@ -301,6 +309,8 @@ function kennzahlenHtml(ects, ziel, k) {
       <div class="kachel"><span class="wert">${formatZahl(k.freistundenProWoche)} h</span><span class="name">Ø Freistunden/Woche</span></div>
       <div class="kachel"><span class="wert">${k.beginn !== null ? minutenZuZeit(Math.round(k.beginn)) : '–'}</span>
         <span class="name">Ø Beginn${k.fruehesterBeginn !== null ? ' (frühester ' + minutenZuZeit(k.fruehesterBeginn) + ')' : ''}</span></div>
+      <div class="kachel${k.pendeltageProWoche > 0.05 ? ' warnung' : ''}"><span class="wert">${formatZahl(k.pendeltageProWoche)}</span>
+        <span class="name">Ø Pendeltage/Woche<br>(unter ${formatZahl(leseZahl(daten.einstellungen.pendeltagSchwelle, 2))} h Uni)</span></div>
     </div>
     <p class="hilfe kennzahlen-hinweis">${KENNZAHLEN_HINWEIS}</p>`;
 }

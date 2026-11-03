@@ -739,6 +739,42 @@ test('Beispieldaten: keine Variante mit überschneidenden Prüfungen', () => {
   wahr(erg.diagnose.some((d) => d.text.includes('„Datenanalyse“ und „Statistik II“')), 'Hinweis zur Überschneidung');
 });
 
+/* ---------- Pendeltage ---------- */
+
+test('Pendeltage: Tage mit weniger als 2 h Uni', () => {
+  setzeDaten({ module: [
+    M('A', 6, true, [V('Vorlesung', [O('', [T(1, '10:00', '11:30')])])]), // Mo 1,5 h → Pendeltag
+    M('B', 6, true, [V('Vorlesung', [O('', [T(2, '10:00', '12:00')])])]), // Di 2 h → kein Pendeltag
+    M('C', 6, true, [V('Vorlesung', [O('', [T(3, '10:00', '11:00'), T(3, '10:30', '11:30')])])]), // Mi überlappend 1,5 h
+  ], einstellungen: { ectsZiel: 0 } });
+  const erg = berechneVarianten();
+  gleich(Math.round(erg.varianten[0].kennzahlen.pendeltageProWoche * 100) / 100, 2, 'Mo + Mi:');
+  daten.einstellungen.pendeltagSchwelle = 1.5;
+  gleich(berechneVarianten().varianten[0].kennzahlen.pendeltageProWoche, 0, 'Schwelle 1,5 h:');
+});
+
+test('Pendeltage: Sortierkriterium und Standard „aus“', () => {
+  const geladen = normalisiereDaten({ einstellungen: { prioritaeten: [{ schluessel: 'tage', aktiv: true }] } });
+  gleich(geladen.einstellungen.prioritaeten.find((p) => p.schluessel === 'pendel').aktiv, false, 'neues Kriterium aus:');
+  gleich(geladen.einstellungen.prioritaeten.find((p) => p.schluessel === 'beginn').aktiv, true, 'alte Kriterien an:');
+  setzeDaten({
+    module: [M('A', 6, true, [V('Übung', [O('kurz', [T(1, '10:00', '11:00')]), O('lang', [T(2, '10:00', '13:00')])])])],
+    einstellungen: { ectsZiel: 0, prioritaeten: [{ schluessel: 'pendel', aktiv: true }] },
+  });
+  const erg = berechneVarianten();
+  gleich(erg.optionen[erg.varianten[0].optionen[0]].option.name, 'lang', 'ohne Pendeltag zuerst:');
+});
+
+test('Pendeltage: Markierung im Wochenraster', () => {
+  setzeDaten({ module: [] });
+  const tage = pendeltagWochentage([
+    { wochentag: 1, start: 600, ende: 660 },
+    { wochentag: 2, start: 600, ende: 720 },
+    { wochentag: 3, start: 600, ende: 660, hinweis: 'Block' },
+  ]);
+  gleich([...tage], [1]);
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {

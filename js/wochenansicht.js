@@ -76,7 +76,9 @@ function regelwocheHtml(optionInfos, pixelProStunde) {
     .filter((g) => g.block);
 
   const tage = sichtbareTage(eintraege);
-  let html = rasterHtml(tage.map((wochentag) => ({ wochentag, titel: WOCHENTAGE_KURZ[wochentag - 1] })), eintraege, geblockt, [], pixelProStunde);
+  const pendel = pendeltagWochentage(eintraege);
+  let html = rasterHtml(tage.map((wochentag) => ({ wochentag, titel: WOCHENTAGE_KURZ[wochentag - 1], pendel: pendel.has(wochentag) })),
+    eintraege, geblockt, [], pixelProStunde);
 
   if (blocktermine.length) {
     html += '<h4 class="unterueberschrift">Blocktermine</h4><ul class="blockliste">' +
@@ -137,10 +139,12 @@ function kalenderwocheHtml(optionInfos, montag, module, pixelProStunde) {
         (e.pruefung.raum ? ' · ' + e.pruefung.raum : '') + (e.pruefung.wiederholung ? ' · Wiederholung' : ''),
     }));
 
+  const pendel = pendeltagWochentage(eintraege);
   const tage = sichtbareTage([...eintraege, ...pruefungen]).map((wochentag) => ({
     wochentag,
     titel: WOCHENTAGE_KURZ[wochentag - 1] + ' ' + formatDatum(montag + wochentag - 1, { mitJahr: false }),
     frei: freiNamen[wochentag] || '',
+    pendel: pendel.has(wochentag),
   }));
   return rasterHtml(tage, eintraege, geblockt, pruefungen, pixelProStunde);
 }
@@ -164,6 +168,27 @@ function uniEintrag(info, termin, wochentag, { gestreift, hinweis, start, ende }
     hinweis,
     gestreift,
   };
+}
+
+// Wochentage, an denen insgesamt weniger Uni ist als die Pendeltag-Schwelle
+// (Überlappungen zählen nur einmal). Blocktermine werden nicht mitgezählt.
+function pendeltagWochentage(eintraege) {
+  const schwelle = leseZahl(daten.einstellungen.pendeltagSchwelle, 2) * 60;
+  const ergebnis = new Set();
+  for (let wochentag = 1; wochentag <= 7; wochentag++) {
+    const tagesEintraege = eintraege
+      .filter((e) => e.wochentag === wochentag && e.hinweis !== 'Block' && e.zaehltMit !== false)
+      .sort((a, b) => a.start - b.start);
+    if (tagesEintraege.length === 0) continue;
+    let minuten = 0;
+    let bisher = -1;
+    for (const e of tagesEintraege) {
+      minuten += Math.max(0, e.ende - Math.max(e.start, bisher));
+      bisher = Math.max(bisher, e.ende);
+    }
+    if (minuten < schwelle) ergebnis.add(wochentag);
+  }
+  return ergebnis;
 }
 
 // Montag bis Freitag immer, Samstag/Sonntag nur, wenn dort etwas liegt
@@ -215,8 +240,9 @@ function rasterHtml(tage, eintraege, geblockt, pruefungen = [], pixelProStunde =
   for (const tag of tage) {
     // Prüfungen ohne Uhrzeit (z. B. Abgabefristen) stehen im Tageskopf
     const ohneZeit = pruefungen.filter((p) => p.ohneZeit && p.wochentag === tag.wochentag);
-    html += `<div class="raster-kopf${tag.frei ? ' frei' : ''}">${escapeHtml(tag.titel)}` +
+    html += `<div class="raster-kopf${tag.frei ? ' frei' : ''}${tag.pendel ? ' pendel' : ''}">${escapeHtml(tag.titel)}` +
       (tag.frei ? `<small>${escapeHtml(tag.frei)}</small>` : '') +
+      (tag.pendel && !tag.frei ? `<small class="kopf-pendel" title="Weniger als ${formatZahl(leseZahl(daten.einstellungen.pendeltagSchwelle, 2))} h Uni an diesem Tag">🚆 Pendeltag</small>` : '') +
       ohneZeit.map((p) => `<small class="kopf-pruefung">${escapeHtml(p.titel + ' ' + p.zeile2)}</small>`).join('') + '</div>';
   }
 

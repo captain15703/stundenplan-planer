@@ -132,7 +132,10 @@ function normaleVorlesungswochen() {
 // Wochen ohne Termin zählen mit 0 Tagen mit – so ergeben z. B. 14-tägige
 // Termine oder Kurse nur in der ersten Semesterhälfte einen ehrlichen
 // Mittelwert. Blocktermine zählen nicht mit, sondern separat als "blockTage".
+// "Pendeltage" sind Uni-Tage, an denen insgesamt weniger als die eingestellte
+// Zahl an Stunden Uni stattfindet (die Fahrt lohnt sich kaum).
 function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen()) {
+  const pendelSchwelle = leseZahl(daten.einstellungen.pendeltagSchwelle, 2) * 60;
   // Alle regelmäßigen Vorkommen (als Zahlen, siehe oben) in den Puffer kopieren und sortieren
   let anzahl = 0;
   const blockTage = new Set();
@@ -159,6 +162,11 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
   let fruehesterBeginn = null;
   let aktuellerTag = null;
   let spaetestesEnde = 0;
+  let pendelTage = 0;
+  let tagesMinuten = 0; // Unizeit am aktuellen Tag (Überlappungen nur einmal gezählt)
+  const tagAbschliessen = () => {
+    if (aktuellerTag !== null && tagesMinuten < pendelSchwelle) pendelTage++;
+  };
 
   for (const zahl of alle) {
     // Zahl wieder in Tag, Start und Ende zerlegen
@@ -169,7 +177,9 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
 
     if (tag !== aktuellerTag) {
       // erster Termin an einem neuen Tag
+      tagAbschliessen();
       aktuellerTag = tag;
+      tagesMinuten = ende - start;
       uniTage++;
       wochen.add(montagVon(tag));
       beginnSumme += start;
@@ -179,15 +189,18 @@ function berechneKennzahlen(optionInfos, normaleWochen = normaleVorlesungswochen
       // weiterer Termin am selben Tag: Lücke zum vorherigen messen
       const luecke = start - spaetestesEnde;
       if (luecke > MIN_LUECKE) lueckenMinuten += luecke;
+      tagesMinuten += Math.max(0, ende - Math.max(start, spaetestesEnde));
       spaetestesEnde = Math.max(spaetestesEnde, ende);
     }
   }
+  tagAbschliessen();
 
   const anzahlWochen = (nurNormaleWochen ? normaleWochen.size : wochen.size) || 1;
   return {
     wochen: nurNormaleWochen ? normaleWochen.size : wochen.size, // Anzahl gemittelter Wochen
     tageProWoche: uniTage / anzahlWochen,
     freistundenProWoche: lueckenMinuten / 60 / anzahlWochen,
+    pendeltageProWoche: pendelTage / anzahlWochen,
     beginn: uniTage ? beginnSumme / uniTage : null, // Ø Beginn in Minuten
     fruehesterBeginn,
     blockTage: blockTage.size, // Tage mit Blockterminen im ganzen Semester
@@ -231,6 +244,9 @@ function vergleicheVarianten(a, b) {
       case 'beginn': // später ist besser – deshalb b minus a
         ergebnis = mitToleranz((kb.beginn ?? MINUTEN_PRO_TAG) - (ka.beginn ?? MINUTEN_PRO_TAG), 5) ||
           mitToleranz((kb.fruehesterBeginn ?? MINUTEN_PRO_TAG) - (ka.fruehesterBeginn ?? MINUTEN_PRO_TAG), 1);
+        break;
+      case 'pendel':
+        ergebnis = mitToleranz(ka.pendeltageProWoche - kb.pendeltageProWoche, 0.05);
         break;
     }
     if (ergebnis !== 0) return ergebnis;

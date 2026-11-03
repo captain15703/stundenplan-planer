@@ -34,6 +34,7 @@ const PRIORITAETEN = {
   tage: 'Wenigste Uni-Tage',
   freistunden: 'Wenigste Freistunden',
   beginn: 'Spätester Beginn',
+  pendel: 'Wenigste Pendeltage',
 };
 
 // Farbpalette für neue Module (gut unterscheidbar)
@@ -58,11 +59,13 @@ function standardEinstellungen() {
     ectsZiel: 30,
     nurZielErreicht: true, // Varianten unter dem ECTS-Ziel ausblenden
     maxVarianten: 20, // so viele Varianten werden höchstens angezeigt
+    pendeltagSchwelle: 2, // Uni-Tage mit weniger Stunden Uni gelten als "Pendeltag"
     prioritaeten: [
       { schluessel: 'ects', aktiv: true },
       { schluessel: 'tage', aktiv: true },
       { schluessel: 'freistunden', aktiv: true },
       { schluessel: 'beginn', aktiv: true },
+      { schluessel: 'pendel', aktiv: false }, // neu: anfangs aus, damit sich nichts ungefragt ändert
     ],
   };
 }
@@ -209,12 +212,18 @@ function normalisiereDaten(roh) {
   const bekannt = Object.keys(PRIORITAETEN);
   const prioritaeten = (Array.isArray(einstellungen.prioritaeten) ? einstellungen.prioritaeten : [])
     .filter((p) => p && bekannt.includes(p.schluessel));
+  // Fehlende (z. B. in neueren Versionen hinzugekommene) Kriterien mit ihrem Standard-Schalter ergänzen
+  const standard = standardEinstellungen().prioritaeten;
   bekannt.forEach((schluessel) => {
-    if (!prioritaeten.some((p) => p.schluessel === schluessel)) prioritaeten.push({ schluessel, aktiv: true });
+    if (!prioritaeten.some((p) => p.schluessel === schluessel)) {
+      prioritaeten.push({ schluessel, aktiv: standard.find((p) => p.schluessel === schluessel)?.aktiv !== false });
+    }
   });
   einstellungen.prioritaeten = prioritaeten.map((p) => ({ schluessel: p.schluessel, aktiv: p.aktiv !== false }));
 
   // Enddaten vor dem Beginn (vertipptes Jahr) werden überall automatisch korrigiert
+  einstellungen.pendeltagSchwelle = Math.max(0, leseZahl(einstellungen.pendeltagSchwelle, 2));
+
   einstellungen.semesterEnde = korrigiereEnddatum(einstellungen.semesterStart, einstellungen.semesterEnde);
 
   return {
