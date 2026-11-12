@@ -916,10 +916,10 @@ test('Wünsche: alte Daten bekommen leere Liste, Kriterium ist an', () => {
 test('Studienverlauf: ECTS je Bereich, Semester und Status', () => {
   const verlauf = normalisiereStudienverlauf({
     gesamtEcts: 120, semesterAnzahl: 4,
-    bereiche: [{ id: 'b1', name: 'Pflicht', sollEcts: 30 }, { id: 'b2', name: 'Wahl', sollEcts: 90 }],
+    bereiche: [{ id: 'b1', name: 'A', minEcts: 18, maxEcts: 30 }, { id: 'b2', name: 'B', minEcts: 0, maxEcts: null }],
     module: [
-      { name: 'A', ects: 6, bereichId: 'b1', semester: 1, status: 'bestanden', note: '1,7' },
-      { name: 'B', ects: 4, bereichId: 'b1', semester: 1, status: 'bestanden', note: '2,3' },
+      { name: 'A1', ects: 6, bereichId: 'b1', semester: 1, status: 'bestanden', note: '1,7' },
+      { name: 'A2', ects: 4, bereichId: 'b1', semester: 1, status: 'bestanden', note: '2,3' },
       { name: 'C', ects: 6, bereichId: 'b2', semester: 2, status: 'belegt' },
       { name: 'D', ects: 5, bereichId: 'gibtsnicht', semester: 0, status: 'unbekannt' },
     ],
@@ -929,9 +929,46 @@ test('Studienverlauf: ECTS je Bereich, Semester und Status', () => {
   const a = werteStudienverlaufAus(verlauf);
   gleich([a.gesamt.bestanden, a.gesamt.belegt, a.gesamt.geplant], [10, 6, 5], 'Gesamt:');
   gleich(a.bereiche.map((b) => b.summe), [10, 6, 5], 'je Bereich (inkl. ohne Bereich):');
+  gleich(a.bereiche.map((b) => b.zustand), ['zuwenig', 'ok', 'ok'], 'Zustand:');
   gleich(a.semester.map((s) => s.ects), [10, 6, 0, 0], 'je Semester:');
   gleich(a.offen.length, 1, 'offen:');
-  wahr(a.hinweise.some((h) => h.includes('„Pflicht“: Es fehlen noch 20')), 'Hinweis fehlende ECTS');
+  wahr(a.hinweise.some((h) => h.includes('„A“: Bis zum Minimum fehlen noch 8')), 'Hinweis Minimum');
+});
+
+test('Studienverlauf: Spanne – über dem Maximum zählt nicht', () => {
+  const verlauf = normalisiereStudienverlauf({
+    gesamtEcts: 60,
+    bereiche: [{ id: 'b1', name: 'A', minEcts: 6, maxEcts: 12 }, { id: 'b2', name: 'B', minEcts: 6, maxEcts: 48 }],
+    module: [
+      { name: 'A1', ects: 10, bereichId: 'b1' },
+      { name: 'A2', ects: 5, bereichId: 'b1' },
+      { name: 'B1', ects: 6, bereichId: 'b2' },
+    ],
+  });
+  const a = werteStudienverlaufAus(verlauf);
+  gleich(a.bereiche[0].angerechnet, 12, 'gekappt:');
+  gleich(a.bereiche[0].zustand, 'zuviel');
+  gleich(a.gesamt.angerechnet, 18, 'angerechnet gesamt:');
+  gleich(a.gesamt.ueberzaehlig, 3, 'überzählig:');
+  wahr(a.hinweise.some((h) => h.includes('3 ECTS über dem Maximum')), 'Hinweis Maximum');
+  wahr(a.hinweise.some((h) => h.includes('Noch 42 ECTS bis zum Studienziel') && h.includes('„B“ (bis 42)')), 'Hinweis Platz: ' + a.hinweise.join(' | '));
+});
+
+test('Studienverlauf: Spannen prüfen und altes Format lesen', () => {
+  const zuGross = werteStudienverlaufAus(normalisiereStudienverlauf({ gesamtEcts: 30,
+    bereiche: [{ id: 'x', name: 'X', minEcts: 20, maxEcts: 30 }, { id: 'y', name: 'Y', minEcts: 20, maxEcts: 30 }] }));
+  wahr(zuGross.hinweise.some((h) => h.includes('Minima')), 'Minima zu groß');
+  const zuKlein = werteStudienverlaufAus(normalisiereStudienverlauf({ gesamtEcts: 120,
+    bereiche: [{ id: 'x', name: 'X', minEcts: 0, maxEcts: 30 }] }));
+  wahr(zuKlein.hinweise.some((h) => h.includes('Maxima')), 'Maxima zu klein');
+
+  const alt = normalisiereStudienverlauf({ bereiche: [{ id: 'b', name: 'Alt', sollEcts: 30 }] }).bereiche[0];
+  gleich([alt.minEcts, alt.maxEcts, 'sollEcts' in alt], [30, 30, false], 'altes sollEcts:');
+  const vertauscht = normalisiereStudienverlauf({ bereiche: [{ name: 'V', minEcts: 20, maxEcts: 10 }] }).bereiche[0];
+  gleich(vertauscht.maxEcts, 20, 'Max nicht unter Min:');
+  gleich(spanneText({ minEcts: 18, maxEcts: 30 }), '18–30 ECTS');
+  gleich(spanneText({ minEcts: 30, maxEcts: 30 }), '30 ECTS');
+  gleich(spanneText({ minEcts: 12, maxEcts: null }), 'ab 12 ECTS');
 });
 
 test('Studienverlauf: Notenschnitt gewichtet und abgeschnitten', () => {
@@ -951,7 +988,7 @@ test('Studienverlauf: Notenschnitt gewichtet und abgeschnitten', () => {
 
 test('Studienverlauf: Übernahme aus einer Variante überspringt Vorhandenes', () => {
   setzeDaten({ module: [] });
-  daten.studienverlauf = normalisiereStudienverlauf({ bereiche: [{ id: 'b1', name: 'Pflicht', sollEcts: 30 }],
+  daten.studienverlauf = normalisiereStudienverlauf({ bereiche: [{ id: 'b1', name: 'A', minEcts: 0, maxEcts: 30 }],
     module: [{ name: 'Statistik', ects: 6, semester: 1 }] });
   const module = [{ id: 'm1', name: 'statistik ', ects: 6 }, { id: 'm2', name: 'Ethik', ects: 4, nummer: 'W-15' }];
   const erg = uebernimmInStudienverlauf(module, 2, { m2: 'b1' });

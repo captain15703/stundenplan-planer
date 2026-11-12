@@ -38,7 +38,7 @@ Web-App zur Planung des Stundenplans im Masterstudium.
 18. **Anwesenheit optional** pro Lehrveranstaltung: Überschneidungen mit Terminen und geblockten Zeiten sind erlaubt und erscheinen als Hinweis mit Anzahl; standardmäßig nicht in den Kennzahlen (umschaltbar); im Raster blasser.
 19. **Variante per Link teilen:** komprimiert in der Adresse (`?teilen=`), nur belegte Module mit gewählter Gruppe, Prüfungen, Vorlesungszeitraum und vorlesungsfreie Tage (keine Notizen, geblockten Zeiten, Wünsche, Favoriten). Nur-Lese-Ansicht mit `.ics`-Export und „In meine Planung übernehmen“ (neue Module + Favorit).
 20. **Weiche Wünsche** mit Wochentagen, ganztägig oder Zeitfenster und Gewicht (leicht/mittel/stark): kein Ausschluss, sondern Abzug (Stunden × Gewicht pro normaler Woche) als Sortierkriterium; nicht erfüllte Wünsche werden je Variante genannt.
-21. **Studienverlaufsplan** (frei konfigurierbar): Bereiche mit Soll-ECTS, Module mit Semester, Status (geplant/belegt/bestanden) und Note; Fortschritt je Bereich, ECTS je Semester, nach ECTS gewichteter Notenschnitt (abgeschnitten); Übernahme der Module einer Variante.
+21. **Studienverlaufsplan** (frei konfigurierbar): Bereiche mit ECTS-Spanne (Minimum/Maximum, Maximum optional; ECTS über dem Maximum werden nicht aufs Studienziel angerechnet), Module mit Semester, Status (geplant/belegt/bestanden) und Note; Fortschritt je Bereich, ECTS je Semester, nach ECTS gewichteter Notenschnitt (abgeschnitten); Übernahme der Module einer Variante.
 
 ## Präzisierungen (abgestimmt vor der Umsetzung)
 

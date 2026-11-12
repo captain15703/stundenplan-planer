@@ -23,8 +23,8 @@ function zeigeStudienverlauf() {
   if (verlauf.bereiche.length === 0 && verlauf.module.length === 0) {
     html += `
       <div class="leer-zustand">
-        <p>Lege zuerst die Modulbereiche deiner Prüfungsordnung an (z. B. „Pflichtbereich 30 ECTS“, „Masterarbeit 30 ECTS“),
-          dann die Module mit Semester und Status.</p>
+        <p>Lege zuerst die Modulbereiche deiner Prüfungsordnung mit ihrer ECTS-Spanne an (z. B. „Bereich A: 18–30 ECTS“,
+          „Masterarbeit: 30 ECTS“), dann die Module mit Semester und Status.</p>
         <p><button class="knopf" data-aktion="bereich-neu">+ Bereich</button>
           <button class="knopf" data-aktion="vmodul-neu" data-semester="1">+ Modul</button></p>
         <p class="hilfe">Module aus dem Semester-Planer kannst du im Tab <a href="#varianten">Varianten</a> mit
@@ -43,11 +43,12 @@ function zeigeStudienverlauf() {
         <div class="kachel ${g.bestanden >= g.soll && g.soll ? 'gut' : ''}"><span class="wert">${formatZahl(g.bestanden)} / ${formatZahl(g.soll)}</span><span class="name">ECTS bestanden</span></div>
         <div class="kachel"><span class="wert">${formatZahl(g.belegt)}</span><span class="name">ECTS belegt (laufend)</span></div>
         <div class="kachel"><span class="wert">${formatZahl(g.geplant)}</span><span class="name">ECTS geplant</span></div>
-        <div class="kachel ${g.summe < g.soll ? 'warnung' : ''}"><span class="wert">${formatZahl(Math.max(0, g.soll - g.summe))}</span><span class="name">ECTS noch ohne Planung</span></div>
+        <div class="kachel ${g.angerechnet < g.soll ? 'warnung' : ''}"><span class="wert">${formatZahl(Math.max(0, g.soll - g.angerechnet))}</span>
+          <span class="name">ECTS noch ohne Planung${g.ueberzaehlig ? ` (${formatZahl(g.ueberzaehlig)} über Bereichs-Maximum zählen nicht)` : ''}</span></div>
         <div class="kachel"><span class="wert">${a.schnitt ? formatZahl(a.schnitt.abgeschnitten) : '–'}</span>
           <span class="name">Notenschnitt${a.schnitt ? ` (genau ${formatZahl(a.schnitt.genau, 2)}, aus ${formatZahl(a.schnitt.ects)} ECTS)` : ''}</span></div>
       </div>
-      ${fortschrittHtml(g)}
+      ${fortschrittHtml({ ...g, min: g.soll, max: g.soll })}
       <p class="hilfe">Schnitt: nach ECTS gewichtet, nur bestandene Module mit Note, nach der ersten Nachkommastelle
         abgeschnitten (nicht gerundet). Prüfe in deiner Prüfungsordnung, ob das bei dir genauso gilt.</p>
       ${a.hinweise.length ? `<div class="hinweis klein"><ul>${a.hinweise.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul></div>` : ''}
@@ -61,8 +62,10 @@ function zeigeStudienverlauf() {
         <ul class="bereich-liste">${a.bereiche.map((b) => `
           <li>
             <div class="bereich-zeile">
-              <strong>${escapeHtml(b.bereich.name)}</strong>
-              <span class="gedimmt klein">${formatZahl(b.summe)}${b.soll ? ' / ' + formatZahl(b.soll) : ''} ECTS geplant · ${formatZahl(b.bestanden)} bestanden</span>
+              <span><strong>${escapeHtml(b.bereich.name)}</strong>
+                ${b.bereich.id ? `<span class="gedimmt klein"> · ${escapeHtml(spanneText(b.bereich))}</span>` : ''}</span>
+              <span class="klein ${b.zustand === 'ok' ? 'gedimmt' : 'bereich-' + b.zustand}">${formatZahl(b.summe)} ECTS geplant · ${formatZahl(b.bestanden)} bestanden${
+                b.bereich.id ? (b.zustand === 'zuwenig' ? ' · Minimum fehlt' : b.zustand === 'zuviel' ? ' · über Maximum' : ' · ✓ in der Spanne') : ''}</span>
             </div>
             ${fortschrittHtml(b)}
           </li>`).join('')}
@@ -91,16 +94,23 @@ function zeigeStudienverlauf() {
   bereich.innerHTML = html;
 }
 
-// Gestapelter Balken: bestanden | belegt | geplant im Verhältnis zum Soll
+// Gestapelter Balken: bestanden | belegt | geplant. Der hellere Bereich
+// dahinter zeigt die erlaubte Spanne (Minimum bis Maximum).
 function fortschrittHtml(werte) {
-  const basis = Math.max(werte.soll || 0, werte.summe, 1);
+  const obergrenze = werte.max === null || werte.max === undefined ? werte.min : werte.max;
+  const basis = Math.max(obergrenze || 0, werte.summe, 1);
   const anteil = (wert) => (wert / basis * 100).toFixed(2) + '%';
+  const spanne = werte.max !== null && werte.max !== undefined && werte.max > werte.min
+    ? `<span class="spanne" style="left:${anteil(werte.min)};width:${anteil(werte.max - werte.min)}" title="erlaubte Spanne"></span>` : '';
+  const ziel = werte.max === null || werte.max === undefined ? `ab ${formatZahl(werte.min)}` : werte.min === werte.max ? formatZahl(werte.min) : `${formatZahl(werte.min)} bis ${formatZahl(werte.max)}`;
   return `
-    <div class="fortschritt" role="img" aria-label="${formatZahl(werte.bestanden)} bestanden, ${formatZahl(werte.belegt)} belegt, ${formatZahl(werte.geplant)} geplant von ${formatZahl(werte.soll)} ECTS">
+    <div class="fortschritt" role="img" aria-label="${formatZahl(werte.bestanden)} bestanden, ${formatZahl(werte.belegt)} belegt, ${formatZahl(werte.geplant)} geplant, Ziel ${ziel} ECTS">
+      ${spanne}
       <span class="teil bestanden" style="width:${anteil(werte.bestanden)}"></span>
       <span class="teil belegt" style="width:${anteil(werte.belegt)}"></span>
       <span class="teil geplant" style="width:${anteil(werte.geplant)}"></span>
-      ${werte.soll && werte.summe > werte.soll ? `<span class="soll-marke" style="left:${anteil(werte.soll)}" title="Soll"></span>` : ''}
+      ${werte.min ? `<span class="soll-marke" style="left:${anteil(werte.min)}" title="Minimum"></span>` : ''}
+      ${spanne ? `<span class="soll-marke" style="left:${anteil(werte.max)}" title="Maximum"></span>` : ''}
     </div>`;
 }
 
@@ -108,7 +118,8 @@ function legendeHtml() {
   return `<p class="legende klein gedimmt">
     <span><span class="punkt bestanden"></span>bestanden</span>
     <span><span class="punkt belegt"></span>belegt</span>
-    <span><span class="punkt geplant"></span>geplant</span></p>`;
+    <span><span class="punkt geplant"></span>geplant</span>
+    <span><span class="punkt spanne"></span>erlaubte Spanne (Striche: Min / Max)</span></p>`;
 }
 
 function verlaufModulHtml(modul) {
@@ -128,7 +139,7 @@ function verlaufEinstellungenHtml(verlauf) {
   const bereiche = verlauf.bereiche.length
     ? '<ul class="einfache-liste">' + verlauf.bereiche.map((b) => `
         <li>
-          <span><strong>${escapeHtml(b.name)}</strong> · ${formatZahl(b.sollEcts)} ECTS</span>
+          <span><strong>${escapeHtml(b.name)}</strong> · ${escapeHtml(spanneText(b))}</span>
           <span class="zeile-aktionen">
             <button class="knopf-text" data-aktion="bereich-bearbeiten" data-id="${b.id}">Bearbeiten</button>
             <button class="knopf-text gefahr" data-aktion="bereich-loeschen" data-id="${b.id}">Löschen</button>
@@ -150,7 +161,8 @@ function verlaufEinstellungenHtml(verlauf) {
         <h4 class="karte-titel">Modulbereiche</h4>
         <button class="knopf klein" data-aktion="bereich-neu">+ Bereich</button>
       </div>
-      <p class="hilfe">Die Bereiche und Soll-ECTS stehen in deiner Prüfungsordnung bzw. im Modulhandbuch.</p>
+      <p class="hilfe">Die Bereiche und ihre ECTS-Spannen stehen in deiner Prüfungsordnung bzw. im Modulhandbuch.
+        Was in einem Bereich über das Maximum hinausgeht, wird nicht aufs Studienziel angerechnet.</p>
       ${bereiche}
     </details>`;
 }
@@ -186,13 +198,26 @@ function oeffneBereichDialog(id) {
       <label class="feld">Name *
         <input name="name" value="${escapeHtml(b.name)}" placeholder="z. B. Wahlpflichtbereich">
       </label>
-      <label class="feld schmal">Soll-ECTS
-        <input name="sollEcts" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(b.sollEcts)}">
-      </label>`,
+      <div class="feldreihe">
+        <label class="feld schmal">mindestens (ECTS)
+          <input name="minEcts" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(b.minEcts)}">
+        </label>
+        <label class="feld schmal">höchstens (ECTS)
+          <input name="maxEcts" type="number" min="0" step="1" inputmode="numeric" value="${b.maxEcts === null ? '' : escapeHtml(b.maxEcts)}" placeholder="ohne Grenze">
+        </label>
+      </div>
+      <p class="hilfe">Fester Wert (z. B. Masterarbeit): beide Felder gleich. Keine Obergrenze: „höchstens“ leer lassen.</p>`,
     beimSpeichern(formular) {
       const w = formularWerte(formular);
-      if (!w.name.trim()) return ['Bitte einen Namen eingeben.'];
-      Object.assign(b, { name: w.name.trim(), sollEcts: Math.max(0, leseZahl(w.sollEcts, 0)) });
+      const fehler = [];
+      const min = leseZahl(w.minEcts, -1);
+      const max = w.maxEcts.trim() === '' ? null : leseZahl(w.maxEcts, -1);
+      if (!w.name.trim()) fehler.push('Bitte einen Namen eingeben.');
+      if (min < 0) fehler.push('„mindestens“ muss eine Zahl ab 0 sein.');
+      if (max !== null && max < 0) fehler.push('„höchstens“ muss eine Zahl ab 0 sein oder leer bleiben.');
+      else if (max !== null && max < min) fehler.push('„höchstens“ darf nicht kleiner als „mindestens“ sein.');
+      if (fehler.length) return fehler;
+      Object.assign(b, { name: w.name.trim(), minEcts: min, maxEcts: max });
       if (!vorhanden) verlauf.bereiche.push(b);
       datenGeaendert();
       return [];
