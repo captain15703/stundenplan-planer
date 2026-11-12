@@ -225,8 +225,7 @@ aktionen['bereich-loeschen'] = (werte) => {
   const b = verlauf.bereiche.find((x) => x.id === werte.id);
   const betroffen = verlauf.module.filter((m) => m.bereichId === b.id).length;
   if (!confirm(`Bereich „${b.name}“ löschen?` + (betroffen ? `\n\n${betroffen} Module verlieren dadurch ihre Zuordnung (sie bleiben erhalten).` : ''))) return;
-  verlauf.bereiche = verlauf.bereiche.filter((x) => x.id !== b.id);
-  verlauf.module.forEach((m) => { if (m.bereichId === b.id) m.bereichId = ''; });
+  loescheBereich(b.id);
   datenGeaendert();
 };
 
@@ -365,14 +364,21 @@ aktionen['variante-studienverlauf'] = () => {
 
 function oeffneUebernahmeDialog(module) {
   const verlauf = daten.studienverlauf;
-  const schonDa = (modul) => verlauf.module.some((m) => m.name.trim().toLowerCase() === modul.name.trim().toLowerCase());
-  const zeilen = module.map((modul) => `
+  const zeilen = module.map((modul) => {
+    const vorhanden = findeVerlaufsmodul(modul);
+    let zustand = '';
+    if (vorhanden && vorhanden.status === 'bestanden') zustand = ' · schon bestanden, bleibt unverändert';
+    else if (vorhanden) zustand = ` · steht schon im Studienverlauf (${vorhanden.semester ? vorhanden.semester + '. Semester, ' : ''}${VERLAUF_STATUS[vorhanden.status]}) – wird auf „belegt“ gesetzt`;
+    // Bereich nur wählbar, wenn das Modul noch keinen hat; Vorschlag aus dem Katalog
+    const brauchtBereich = verlauf.bereiche.length && !(vorhanden && (vorhanden.bereichId || vorhanden.status === 'bestanden'));
+    return `
     <tr>
-      <td>${escapeHtml(modul.name)}<br><span class="klein gedimmt">${formatZahl(modul.ects)} ECTS${schonDa(modul) ? ' · schon im Studienverlauf, wird übersprungen' : ''}</span></td>
-      <td>${verlauf.bereiche.length && !schonDa(modul)
-        ? `<select name="bereich-${escapeHtml(modul.id)}" aria-label="Bereich für ${escapeHtml(modul.name)}">${optionenHtml(bereichOptionen(verlauf), '')}</select>`
+      <td>${escapeHtml(modul.name)}<br><span class="klein gedimmt">${formatZahl(modul.ects)} ECTS${zustand}</span></td>
+      <td>${brauchtBereich
+        ? `<select name="bereich-${escapeHtml(modul.id)}" aria-label="Bereich für ${escapeHtml(modul.name)}">${optionenHtml(bereichOptionen(verlauf), katalogBereich(modul))}</select>`
         : ''}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   zeigeDialog({
     titel: 'In den Studienverlauf übernehmen',
     speichernText: 'Übernehmen',
@@ -382,17 +388,20 @@ function oeffneUebernahmeDialog(module) {
         <select name="semester">${optionenHtml(semesterOptionen(verlauf, 1).slice(1), 1)}</select>
       </label>
       <div class="tabelle-scroll"><table class="uebernahme-tabelle"><tbody>${zeilen}</tbody></table></div>
-      <p class="hilfe">Die Module werden mit Status „belegt“ eingetragen.${verlauf.bereiche.length ? '' : ' Bereiche kannst du im Tab „Studium“ anlegen und später zuordnen.'}</p>`,
+      <p class="hilfe">Die Module werden mit Status „belegt“ eingetragen; schon eingeplante werden auf „belegt“ und dieses Semester gesetzt.
+        ${verlauf.bereiche.length ? 'Der Bereich ist aus dem Modulhandbuch vorbelegt, wo bekannt.' : 'Bereiche kannst du im Tab „Studium“ anlegen und später zuordnen.'}</p>`,
     beimSpeichern(formular) {
       const w = formularWerte(formular);
       const zuordnung = {};
       for (const modul of module) zuordnung[modul.id] = w['bereich-' + modul.id] || '';
       const ergebnis = uebernimmInStudienverlauf(module, Number(w.semester), zuordnung);
       datenGeaendert(false);
+      const anzahl = (n) => n + ' ' + (n === 1 ? 'Modul' : 'Module');
       zeigeMeldung([
-        ergebnis.neu.length + ' ' + (ergebnis.neu.length === 1 ? 'Modul' : 'Module') + ' ins ' + w.semester + '. Semester übernommen',
-        ergebnis.uebersprungen.length ? 'übersprungen (schon vorhanden): ' + ergebnis.uebersprungen.join(', ') : '',
-      ].filter(Boolean).join('\n'));
+        ergebnis.neu.length ? anzahl(ergebnis.neu.length) + ' neu im ' + w.semester + '. Semester' : '',
+        ergebnis.aktualisiert.length ? anzahl(ergebnis.aktualisiert.length) + ' auf „belegt“ gesetzt' : '',
+        ergebnis.unveraendert.length ? 'schon bestanden: ' + ergebnis.unveraendert.join(', ') : '',
+      ].filter(Boolean).join('\n') || 'Nichts zu übernehmen');
       return [];
     },
   });
@@ -448,7 +457,7 @@ function gefilterteKatalogModule() {
       // Unklarer Turnus ("alle 4 Semester") bleibt sichtbar
       if ((angebot.ws || angebot.ss) && !angebot[katalogFilter.angebot]) return false;
     }
-    if (katalogFilter.nurOffen && verlauf.module.some((v) => v.nummer === m.kuerzel)) return false;
+    if (katalogFilter.nurOffen && findeVerlaufsmodul(m)) return false;
     const text = [m.kuerzel, m.name, m.fach, m.verantwortlich, m.pruefung, m.sprache].join(' ').toLowerCase();
     return woerter.every((w) => text.includes(w));
   });
@@ -461,7 +470,7 @@ function zeichneKatalogListe() {
   const module = gefilterteKatalogModule();
   $('#katalog-anzahl').textContent = `${module.length} von ${verlauf.katalog.module.length} Modulen`;
   liste.innerHTML = module.length ? module.map((m) => {
-    const geplant = verlauf.module.find((v) => v.nummer === m.kuerzel);
+    const geplant = findeVerlaufsmodul(m);
     const bereichNamen = m.bereichIds.map((id) => verlauf.bereiche.find((b) => b.id === id)).filter(Boolean).map(bereichKurzname);
     const details = [m.fach, m.pruefung, m.verantwortlich, m.sprache, m.seite ? 'MHB S. ' + m.seite : ''].filter(Boolean);
     return `

@@ -629,7 +629,7 @@ aktionen['planer-katalog'] = () => {
   const vorgemerkt = semester && semester.fachsemester
     ? verlauf.module.filter((m) => m.semester === semester.fachsemester && katalogModul(verlauf, m.nummer)).map((m) => m.nummer)
     : [];
-  planerAuswahl = new Set(vorgemerkt.filter((k) => !daten.module.some((m) => m.nummer === k)));
+  planerAuswahl = new Set(vorgemerkt.filter((k) => !findePlanerModul(katalogModul(verlauf, k))));
   planerFilter.suche = '';
   const bereiche = verlauf.bereiche.filter((b) => verlauf.katalog.module.some((m) => m.bereichIds.includes(b.id)));
   if (planerFilter.bereichId && !bereiche.some((b) => b.id === planerFilter.bereichId)) planerFilter.bereichId = '';
@@ -688,7 +688,7 @@ function zeichnePlanerKatalog() {
 
   $('#planer-katalog-anzahl').textContent = `${module.length} Module · ${planerAuswahl.size} ausgewählt`;
   liste.innerHTML = module.length ? module.map((m) => {
-    const vorhanden = daten.module.some((x) => x.nummer === m.kuerzel);
+    const vorhanden = Boolean(findePlanerModul(m));
     const bereichNamen = m.bereichIds.map((id) => verlauf.bereiche.find((b) => b.id === id)).filter(Boolean).map(bereichKurzname);
     const angeboten = semester ? imSemesterAngeboten(m, semester.typ) : null;
     return `

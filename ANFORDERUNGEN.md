@@ -25,7 +25,7 @@ Web-App zum Planen des Studiums: pro Semester einen Stundenplan ohne Überschnei
 - **Alternativen:** Eine Lehrveranstaltung hat eine oder mehrere Optionen (z. B. Übungsgruppe A/B/C), von denen genau eine belegt wird. Eine Option kann aus mehreren Terminen bestehen (z. B. Di und Do).
 - **Anwesenheit optional** (z. B. bei Aufzeichnung): Solche Lehrveranstaltungen dürfen sich mit anderen Terminen und geblockten Zeiten überschneiden. Das erscheint nur als Hinweis mit Anzahl der betroffenen Termine; im Raster sind sie blasser. In den Kennzahlen zählen sie standardmäßig nicht mit (umschaltbar).
 - **Aktivieren/Deaktivieren** auf Ebene von Modul, Lehrveranstaltung und einzelner Option; die Varianten rechnen sich danach neu.
-- **Aus dem Modulhandbuch wählen** (siehe 8): Mehrfachauswahl mit Suche und Bereichsfilter. Die App erkennt am Vorlesungsbeginn oder Semesternamen, ob ein WS oder SS geplant wird, und zeigt standardmäßig nur dort angebotene Module. Die im Studienverlauf für dieses Fachsemester eingeplanten Module sind vorausgewählt. Alle werden als Wahlmodule angelegt (mit Name, Nummer, ECTS, Prüfungsform, Modulverantwortlicher/m; Turnus und Seite in den Notizen); vorhandene Module mit gleicher Nummer werden übersprungen. Module, die laut Modulhandbuch im geplanten Semester nicht angeboten werden, sind markiert.
+- **Aus dem Modulhandbuch wählen** (siehe 8): Mehrfachauswahl mit Suche und Bereichsfilter. Die App erkennt am Vorlesungsbeginn oder Semesternamen, ob ein WS oder SS geplant wird, und zeigt standardmäßig nur dort angebotene Module. Die im Studienverlauf für dieses Fachsemester eingeplanten Module sind vorausgewählt. Alle werden als Wahlmodule angelegt (mit Name, Nummer, ECTS, Prüfungsform, Modulverantwortlicher/m; Turnus und Seite in den Notizen); vorhandene Module (gleiche Nummer, ohne Nummer gleicher Name) werden übersprungen. Module, die laut Modulhandbuch im geplanten Semester nicht angeboten werden, sind markiert.
 
 ## 3. Prüfungen
 
@@ -62,7 +62,7 @@ Web-App zum Planen des Studiums: pro Semester einen Stundenplan ohne Überschnei
 - **Kalender-Export** (`.ics`) für Google Kalender: Zeitzone Europe/Berlin, Serien mit Enddatum, vorlesungsfreie Tage als Ausnahmen, Blocktermine als Einzeltermine, Prüfungen als eigene Termine (ohne Uhrzeit ganztägig).
 - **Teilen per Link:** Die Variante steckt komprimiert in der Adresse (`?teilen=…`) – nur belegte Module mit gewählter Gruppe, ihre Prüfungen, Vorlesungszeitraum und vorlesungsfreie Tage; keine Notizen, geblockten Zeiten, Wünsche oder Favoriten. Der Empfänger sieht eine Nur-Lese-Ansicht mit Kalender-Export und kann die Variante als neue Module plus Favorit übernehmen.
 - **Druckansicht / PDF:** Wochenraster (A4 quer), danach Prüfungsplan sowie Module und Termine.
-- **In den Studienverlauf übernehmen:** die Module einer Variante als „belegt“ in ein Semester eintragen; Module mit gleichem Namen werden übersprungen.
+- **In den Studienverlauf übernehmen:** die Module einer Variante als „belegt“ in ein Semester eintragen. Schon vorhandene Module werden auf „belegt“ und dieses Semester gesetzt, bestandene bleiben unverändert. Der Bereich ist aus dem Modulkatalog vorbelegt.
 
 ## 7. Studienverlauf
 
@@ -71,6 +71,8 @@ Web-App zum Planen des Studiums: pro Semester einen Stundenplan ohne Überschnei
 - **Module** mit Nummer, ECTS, Bereich, Semester (oder „offen“), Status *geplant / belegt / bestanden* und Note.
 - **Übersicht:** ECTS bestanden, belegt, geplant und noch ohne Planung; Fortschrittsbalken je Bereich mit hinterlegter Spanne; ECTS je Semester.
 - **Anrechnung:** Pro Bereich zählt höchstens das Maximum zum Studienziel; was darüber liegt, wird ausgewiesen.
+- **Gleiche Module erkennen:** Studienverlauf, Modulkatalog und Semester-Planer erkennen dasselbe Modul an der Modulnummer, nur ohne Nummer am Namen.
+- **Bereich löschen:** Module und Katalog verlieren die Zuordnung; ihre ECTS zählen dann unter „Ohne Bereich“.
 - **Hinweise:** Minimum eines Bereichs fehlt, Bereich über dem Maximum, Spannen passen nicht zum Studienziel, wo bei erfüllten Minima noch Platz ist, und wenn ein Modul in einem Semester liegt, in dem es laut Modulhandbuch nicht angeboten wird.
 - **Notenschnitt:** nach ECTS gewichtet, nur bestandene Module mit Note, nach der ersten Nachkommastelle abgeschnitten (nicht gerundet).
 
@@ -84,6 +86,6 @@ Web-App zum Planen des Studiums: pro Semester einen Stundenplan ohne Überschnei
 
 ## 9. Daten
 
-- **Backup:** alle Daten als JSON exportieren und wieder importieren (mit Rückfrage, ersetzt die vorhandenen Daten).
+- **Backup:** alle Daten als JSON exportieren und wieder importieren (mit Rückfrage, ersetzt die vorhandenen Daten; danach gilt alles als gesichert).
 - **Backup-Erinnerung:** Hinweis, wenn die erste ungesicherte Änderung älter als eine einstellbare Zahl von Tagen ist (Standard 14, 0 = aus); „Später“ blendet ihn drei Tage aus.
 - **Beispieldaten** (fachneutral) per Klick, die jede Funktion einmal zeigen.

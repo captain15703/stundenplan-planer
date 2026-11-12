@@ -95,7 +95,7 @@ Die Daten werden pro Browser und Gerät gespeichert. Zum Übertragen zwischen La
   - **☆ Als Favorit speichern**
   - **📅 Kalender-Export (.ics)**, siehe [unten](#export-für-google-kalender)
   - **🔗 Teilen:** Link mit der Variante, am Handy über das Teilen-Menü. Der Empfänger sieht Raster, Kennzahlen und Prüfungen, kann exportieren oder die Variante übernehmen. Im Link stecken nur die belegten Module mit gewählten Gruppen, ihre Prüfungen und der Vorlesungszeitraum, keine Notizen, geblockten Zeiten oder Wünsche.
-  - **🎓 In Studienverlauf:** trägt die Module als „belegt“ in ein Semester ein
+  - **🎓 In Studienverlauf:** trägt die Module als „belegt“ in ein Semester ein. Schon eingeplante Module werden auf „belegt“ und dieses Semester gesetzt, bestandene bleiben unverändert. Erkannt wird ein Modul an seiner Nummer (ohne Nummer am Namen), der Bereich ist aus dem Modulhandbuch vorbelegt.
   - **🖨 Drucken / PDF:** Wochenraster auf A4 quer, danach Prüfungsplan, Module und Termine. Im Druckdialog „Als PDF speichern“ wählen.
 
 ### Favoriten
@@ -115,7 +115,7 @@ Die Datei nutzt die Zeitzone Europe/Berlin. Wiederkehrende Termine kommen als Se
 ## Daten und Backup
 
 - Alles wird im `localStorage` des Browsers gespeichert. Das Modulhandbuch wird nur im Browser ausgewertet und nirgends hochgeladen.
-- **Backup exportieren** (*Einstellungen → Daten & Backup*) speichert alle Daten als JSON-Datei. **Backup importieren** ersetzt die aktuellen Daten nach Rückfrage. So kommen deine Daten aufs Handy, und du bist abgesichert, falls der Browser seine Daten löscht.
+- **Backup exportieren** (*Einstellungen → Daten & Backup*) speichert alle Daten als JSON-Datei. **Backup importieren** ersetzt die aktuellen Daten nach Rückfrage; danach gilt alles als gesichert. So kommen deine Daten aufs Handy, und du bist abgesichert, falls der Browser seine Daten löscht.
 - **Erinnerung:** Ist deine erste ungesicherte Änderung älter als 14 Tage, erscheint oben ein Hinweis mit *Jetzt sichern* und *Später* (drei Tage Ruhe). Die Tage sind einstellbar, 0 schaltet die Erinnerung aus.
 - Ältere Daten und Backups werden beim Laden automatisch auf den aktuellen Stand gebracht.
 
@@ -173,7 +173,7 @@ Die Suche probiert die Kombinationen per *Backtracking* und verwirft einen Zweig
 
 ### Tests
 
-`tests/index.html` im Browser öffnen. Die Seite prüft ohne Zusatzbibliotheken die Rechenlogik (derzeit 76 Tests) und setzt für automatische Läufe, z. B. mit Playwright, `window.testZusammenfassung`. Abgedeckt sind:
+`tests/index.html` im Browser öffnen. Die Seite prüft ohne Zusatzbibliotheken die Rechenlogik (derzeit 80 Tests) und setzt für automatische Läufe, z. B. mit Playwright, `window.testZusammenfassung`. Abgedeckt sind:
 - Datum, Rhythmen, vorlesungsfreie Zeiten und Zeitzone
 - Überschneidungen, Puffer, Variantensuche, ECTS, Kennzahlen und Sortierung inklusive Leistung
 - Prüfungen, Pendeltage, Wünsche, Anwesenheit optional
