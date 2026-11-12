@@ -378,3 +378,78 @@ function passendesSemester(eintrag, studienbeginn, abSemester = 1) {
   }
   return abSemester;
 }
+
+/* ---------- Verbindung zum Semester-Planer ---------- */
+
+// Semester zu einem Datum (z. B. Vorlesungsbeginn): Okt–März → WS, Apr–Sep → SS.
+// "2026-10-12" → { typ: 'WS', jahr: 2026 }, "2027-04-19" → { typ: 'SS', jahr: 2027 }
+function semesterVonDatum(datum) {
+  const treffer = /^(\d{4})-(\d{2})/.exec(datum || '');
+  if (!treffer) return null;
+  const jahr = Number(treffer[1]);
+  const monat = Number(treffer[2]);
+  if (monat >= 10) return { typ: 'WS', jahr };
+  if (monat <= 3) return { typ: 'WS', jahr: jahr - 1 };
+  return { typ: 'SS', jahr };
+}
+
+// Welches Semester plant der Semester-Planer gerade? Aus dem Vorlesungsbeginn,
+// ersatzweise aus dem Semesternamen ("WS 2026/27", "SoSe 2027"). Ergebnis
+// { typ, jahr, text, fachsemester } oder null. fachsemester = Nummer im
+// Studienverlauf (null, wenn außerhalb).
+function geplantesSemester() {
+  const e = daten.einstellungen;
+  let s = semesterVonDatum(e.semesterStart);
+  if (!s) {
+    const name = String(e.semesterName || '');
+    const ws = /\b(WS|WiSe|Winter)\w*\s*(\d{2,4})/i.exec(name);
+    const ss = /\b(SS|SoSe|Sommer)\w*\s*(\d{2,4})/i.exec(name);
+    const jahr = (text) => (text.length === 2 ? 2000 + Number(text) : Number(text));
+    if (ws) s = { typ: 'WS', jahr: jahr(ws[2]) };
+    else if (ss) s = { typ: 'SS', jahr: jahr(ss[2]) };
+  }
+  if (!s) return null;
+  const verlauf = daten.studienverlauf;
+  const text = semesterInfo(1, s).text;
+  let fachsemester = null;
+  for (let nr = 1; nr <= Math.max(verlauf.semesterAnzahl + 2, 12); nr++) {
+    if (semesterInfo(nr, verlauf.studienbeginn).text === text) { fachsemester = nr; break; }
+  }
+  return { ...s, text, fachsemester };
+}
+
+// Wird das Katalogmodul im Semestertyp angeboten? true/false, null = unklar
+function imSemesterAngeboten(eintrag, typ) {
+  const angebot = turnusAngebot(eintrag.turnus);
+  if (!typ || angebot.ws === angebot.ss) return angebot.ws || null;
+  return angebot[typ.toLowerCase()];
+}
+
+// Legt aus Katalogmodulen Module im Semester-Planer an – immer als
+// Wahlmodule (im Studiengang ist alles frei wählbar; der Planer sucht dann
+// Kombinationen fürs ECTS-Ziel). Module, deren Nummer schon existiert,
+// werden übersprungen.
+function katalogModuleInPlaner(kuerzelListe) {
+  const ergebnis = { neu: [], uebersprungen: [] };
+  for (const kuerzel of kuerzelListe) {
+    const eintrag = katalogModul(daten.studienverlauf, kuerzel);
+    if (!eintrag) continue;
+    if (daten.module.some((m) => m.nummer === kuerzel)) {
+      ergebnis.uebersprungen.push(eintrag.name);
+      continue;
+    }
+    daten.module.push({
+      ...neuesModul(),
+      name: eintrag.name,
+      nummer: eintrag.kuerzel,
+      ects: eintrag.ects,
+      dozent: eintrag.verantwortlich,
+      pruefungsform: eintrag.pruefung,
+      pflicht: false,
+      notizen: ['Turnus: ' + eintrag.turnus, eintrag.sprache ? 'Sprache: ' + eintrag.sprache : '',
+        eintrag.seite ? 'Modulhandbuch S. ' + eintrag.seite : ''].filter(Boolean).join(' · '),
+    });
+    ergebnis.neu.push(eintrag.name);
+  }
+  return ergebnis;
+}

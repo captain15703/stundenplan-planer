@@ -25,7 +25,10 @@ function zeigeModule() {
         <h2>Module</h2>
         <p class="untertitel">${module.length} Module · aktiv: ${formatZahl(ectsPflicht)} ECTS Pflicht + ${formatZahl(ectsWahl)} ECTS Wahl</p>
       </div>
-      <button class="knopf primaer" data-aktion="modul-neu">+ Modul</button>
+      <div class="knopf-reihe">
+        ${daten.studienverlauf.katalog ? '<button class="knopf" data-aktion="planer-katalog">📚 Aus Modulhandbuch</button>' : ''}
+        <button class="knopf primaer" data-aktion="modul-neu">+ Modul</button>
+      </div>
     </div>`;
 
   if (!e.semesterStart || !e.semesterEnde) {
@@ -39,9 +42,11 @@ function zeigeModule() {
     html += `<div class="leer-zustand">
         <p>Noch keine Module angelegt.</p>
         <p>
-          <button class="knopf primaer" data-aktion="modul-neu">Erstes Modul anlegen</button>
+          ${daten.studienverlauf.katalog ? '<button class="knopf primaer" data-aktion="planer-katalog">📚 Aus Modulhandbuch wählen</button>' : ''}
+          <button class="knopf${daten.studienverlauf.katalog ? '' : ' primaer'}" data-aktion="modul-neu">Erstes Modul anlegen</button>
           <button class="knopf" data-aktion="beispieldaten-laden">Beispieldaten laden</button>
         </p>
+        ${daten.studienverlauf.katalog ? '' : '<p class="hilfe">Tipp: Wenn du im Tab <a href="#studium">Studium</a> das Modulhandbuch einliest, kannst du Module hier direkt daraus wählen.</p>'}
       </div>`;
   } else {
     html += '<div class="karten-liste">' + module.map(modulKarteHtml).join('') + '</div>';
@@ -54,6 +59,12 @@ function modulKarteHtml(modul) {
   if (modul.nummer) meta.push(escapeHtml(modul.nummer));
   if (modul.dozent) meta.push(escapeHtml(modul.dozent));
   if (modul.pruefungsform) meta.push('Prüfung: ' + escapeHtml(modul.pruefungsform));
+  // Laut Modulhandbuch im geplanten Semester nicht angeboten?
+  const eintrag = katalogModul(daten.studienverlauf, modul.nummer);
+  const semester = eintrag ? geplantesSemester() : null;
+  if (semester && imSemesterAngeboten(eintrag, semester.typ) === false) {
+    meta.push(`<span class="turnus-warnung">⚠ laut Modulhandbuch nicht im ${semester.typ} (${escapeHtml(eintrag.turnus)})</span>`);
+  }
   const link = sichererLink(modul.link);
   if (link) meta.push(`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">Link ↗</a>`);
 
@@ -601,3 +612,112 @@ function pruefeEntwurf(v, korrekturen = []) {
   });
   return fehler;
 }
+
+/* ---------- Module aus dem Modulhandbuch wählen ----------
+   Auswahl mit Suche; die Liste wird bei Eingaben neu gezeichnet, die
+   gewählten Kürzel stehen in planerAuswahl (überlebt das Neuzeichnen).
+   ------------------------------------------------------------------ */
+
+const planerFilter = { suche: '', bereichId: '', nurAngeboten: true };
+let planerAuswahl = new Set();
+
+aktionen['planer-katalog'] = () => {
+  const verlauf = daten.studienverlauf;
+  if (!verlauf.katalog) return;
+  const semester = geplantesSemester();
+  // Vorauswahl: im Studienverlauf für dieses Semester eingeplant, aber noch nicht im Planer
+  const vorgemerkt = semester && semester.fachsemester
+    ? verlauf.module.filter((m) => m.semester === semester.fachsemester && katalogModul(verlauf, m.nummer)).map((m) => m.nummer)
+    : [];
+  planerAuswahl = new Set(vorgemerkt.filter((k) => !daten.module.some((m) => m.nummer === k)));
+  planerFilter.suche = '';
+  const bereiche = verlauf.bereiche.filter((b) => verlauf.katalog.module.some((m) => m.bereichIds.includes(b.id)));
+  if (planerFilter.bereichId && !bereiche.some((b) => b.id === planerFilter.bereichId)) planerFilter.bereichId = '';
+
+  zeigeDialog({
+    titel: 'Module aus dem Modulhandbuch',
+    speichernText: 'Übernehmen',
+    breit: true,
+    inhalt: `
+      <p class="klein">${semester
+        ? `Geplantes Semester: <strong>${escapeHtml(semester.text)}</strong>${semester.fachsemester ? ` (${semester.fachsemester}. Fachsemester)` : ''}`
+        : 'Lege unter <a href="#einstellungen">Einstellungen</a> den Vorlesungszeitraum fest – dann zeigt die Auswahl nur Module, die in diesem Semester angeboten werden.'}</p>
+      ${vorgemerkt.length ? `<p class="klein">Vorausgewählt: ${vorgemerkt.length} im Studienverlauf für dieses Semester eingeplante Module.</p>` : ''}
+      <div class="katalog-filter">
+        <label class="feld katalog-suche">Suche
+          <input type="search" data-eingabe="planer-katalog-suche" placeholder="Name, Kürzel, Fach, Dozent …" autocomplete="off">
+        </label>
+        <label class="feld">Bereich
+          <select data-aktion="planer-katalog-filter" data-feld="bereichId">${optionenHtml([['', 'alle Bereiche'], ...bereiche.map((b) => [b.id, b.name])], planerFilter.bereichId)}</select>
+        </label>
+        ${semester ? `<label class="auswahl"><input type="checkbox" data-aktion="planer-katalog-filter" data-feld="nurAngeboten"${planerFilter.nurAngeboten ? ' checked' : ''}>
+          nur im ${semester.typ} angebotene</label>` : ''}
+      </div>
+      <p class="gedimmt klein" id="planer-katalog-anzahl"></p>
+      <ul class="katalog-liste planer-katalog-liste" id="planer-katalog-liste"></ul>
+      <p class="hilfe">Die Module werden mit Name, Kürzel, ECTS, Prüfungsform und Modulverantwortlicher/m angelegt – die Termine
+        (Vorlesung, Übung …) trägst du danach ein. Alle werden als <strong>Wahlmodule</strong> angelegt – die App sucht dann passende
+        Kombinationen fürs ECTS-Ziel.</p>`,
+    beimSpeichern() {
+      if (planerAuswahl.size === 0) return ['Bitte mindestens ein Modul auswählen.'];
+      const ergebnis = katalogModuleInPlaner([...planerAuswahl]);
+      datenGeaendert();
+      zeigeMeldung([
+        `${ergebnis.neu.length} ${ergebnis.neu.length === 1 ? 'Modul' : 'Module'} angelegt – jetzt die Termine eintragen`,
+        ergebnis.uebersprungen.length ? 'schon vorhanden: ' + ergebnis.uebersprungen.join(', ') : '',
+      ].filter(Boolean).join('\n'));
+      return [];
+    },
+  });
+  zeichnePlanerKatalog();
+};
+
+function zeichnePlanerKatalog() {
+  const liste = $('#planer-katalog-liste');
+  if (!liste) return;
+  const verlauf = daten.studienverlauf;
+  const semester = geplantesSemester();
+  const woerter = planerFilter.suche.toLowerCase().split(/\s+/).filter(Boolean);
+  const module = verlauf.katalog.module.filter((m) => {
+    if (planerAuswahl.has(m.kuerzel)) return true; // Gewähltes bleibt immer sichtbar
+    if (planerFilter.bereichId && !m.bereichIds.includes(planerFilter.bereichId)) return false;
+    if (semester && planerFilter.nurAngeboten && imSemesterAngeboten(m, semester.typ) === false) return false;
+    const text = [m.kuerzel, m.name, m.fach, m.verantwortlich, m.pruefung, m.sprache].join(' ').toLowerCase();
+    return woerter.every((w) => text.includes(w));
+  }).sort((a, b) => Number(planerAuswahl.has(b.kuerzel)) - Number(planerAuswahl.has(a.kuerzel)));
+
+  $('#planer-katalog-anzahl').textContent = `${module.length} Module · ${planerAuswahl.size} ausgewählt`;
+  liste.innerHTML = module.length ? module.map((m) => {
+    const vorhanden = daten.module.some((x) => x.nummer === m.kuerzel);
+    const bereichNamen = m.bereichIds.map((id) => verlauf.bereiche.find((b) => b.id === id)).filter(Boolean).map(bereichKurzname);
+    const angeboten = semester ? imSemesterAngeboten(m, semester.typ) : null;
+    return `
+      <li class="katalog-eintrag${vorhanden ? ' eingeplant' : ''}">
+        <label class="planer-katalog-wahl">
+          <input type="checkbox" data-aktion="planer-katalog-wahl" data-kuerzel="${escapeHtml(m.kuerzel)}"
+            ${planerAuswahl.has(m.kuerzel) ? ' checked' : ''}${vorhanden ? ' disabled' : ''}>
+          <span class="katalog-text">
+            <span><strong>${escapeHtml(m.name)}</strong> <span class="gedimmt klein">${escapeHtml(m.kuerzel)}</span></span>
+            <span class="klein">${formatZahl(m.ects)} ECTS · ${angeboten === false ? '<span class="turnus-warnung">⚠ ' : ''}${escapeHtml(m.turnus || 'Turnus unbekannt')}${angeboten === false ? '</span>' : ''} · ${escapeHtml(bereichNamen.join(', '))}</span>
+            <span class="klein gedimmt">${[m.pruefung, m.verantwortlich].filter(Boolean).map(escapeHtml).join(' · ')}${vorhanden ? ' · <strong>schon angelegt</strong>' : ''}</span>
+          </span>
+        </label>
+      </li>`;
+  }).join('') : '<li class="gedimmt">Keine Module gefunden.</li>';
+}
+
+aktionen['planer-katalog-suche'] = (werte, element) => {
+  planerFilter.suche = element.value;
+  zeichnePlanerKatalog();
+};
+
+aktionen['planer-katalog-filter'] = (werte, element) => {
+  planerFilter[werte.feld] = element.type === 'checkbox' ? element.checked : element.value;
+  zeichnePlanerKatalog();
+};
+
+aktionen['planer-katalog-wahl'] = (werte, element) => {
+  if (element.checked) planerAuswahl.add(werte.kuerzel);
+  else planerAuswahl.delete(werte.kuerzel);
+  $('#planer-katalog-anzahl').textContent = $('#planer-katalog-anzahl').textContent.replace(/\d+ ausgewählt/, planerAuswahl.size + ' ausgewählt');
+};

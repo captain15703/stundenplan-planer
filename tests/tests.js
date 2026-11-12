@@ -1108,6 +1108,48 @@ test('Studienverlauf: Semester WS/SS und Turnus-Hinweis', () => {
   wahr(hinweise[0].includes('nur im SS') && hinweise[0].includes('WS 27/28'), hinweise[0]);
 });
 
+/* ---------- Modulhandbuch → Semester-Planer ---------- */
+
+test('Planer: Semester aus Vorlesungsbeginn bzw. Semestername', () => {
+  gleich(semesterVonDatum('2026-10-12'), { typ: 'WS', jahr: 2026 });
+  gleich(semesterVonDatum('2027-01-10'), { typ: 'WS', jahr: 2026 });
+  gleich(semesterVonDatum('2027-04-19'), { typ: 'SS', jahr: 2027 });
+  gleich(semesterVonDatum(''), null);
+
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({ studienbeginn: { typ: 'WS', jahr: 2026 } });
+  daten.einstellungen.semesterStart = '2027-04-19';
+  const s = geplantesSemester();
+  gleich([s.typ, s.text, s.fachsemester], ['SS', 'SS 27', 2], 'aus Datum:');
+  daten.einstellungen.semesterStart = '';
+  daten.einstellungen.semesterName = 'WS 2027/28';
+  gleich(geplantesSemester().fachsemester, 3, 'aus Name:');
+  daten.einstellungen.semesterName = 'SoSe 26';
+  gleich(geplantesSemester().fachsemester, null, 'vor Studienbeginn:');
+  daten.einstellungen.semesterName = '';
+  gleich(geplantesSemester(), null, 'unbekannt:');
+});
+
+test('Planer: Module aus dem Katalog anlegen', () => {
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({});
+  uebernimmModulhandbuch(leseModulhandbuch(mhbBeispielSeiten()), ['A1', 'A3', 'A6']);
+  const kat = (k) => katalogModul(daten.studienverlauf, k);
+  gleich([imSemesterAngeboten(kat('EESYS-ES-M'), 'WS'), imSemesterAngeboten(kat('EESYS-ES-M'), 'SS'),
+    imSemesterAngeboten(kat('ISM-IOM-M'), 'WS'), imSemesterAngeboten(kat('WI-Thesis-M'), 'WS')], [false, true, null, true], 'Angebot:');
+
+  const e1 = katalogModuleInPlaner(['EESYS-ES-M', 'MAEES8.2']);
+  gleich(e1.neu.length, 2);
+  const es = daten.module[0];
+  gleich([es.name, es.nummer, es.ects, es.dozent, es.pflicht, es.veranstaltungen.length],
+    ['Energieeffiziente Systeme', 'EESYS-ES-M', 6, 'Prof. Dr. Thorsten Staake', false, 0], 'angelegt (Wahl):');
+  wahr(es.pruefungsform.startsWith('schriftliche Prüfung (Klausur)'), 'Prüfungsform');
+  wahr(es.notizen.includes('Modulhandbuch S. 167'), 'Notiz: ' + es.notizen);
+  gleich(daten.module[1].pflicht, false, 'auch Wahlmodul:');
+  const e2 = katalogModuleInPlaner(['EESYS-ES-M']);
+  gleich([e2.neu.length, e2.uebersprungen], [0, ['Energieeffiziente Systeme']], 'doppelt:');
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {
