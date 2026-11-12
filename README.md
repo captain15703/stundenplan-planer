@@ -81,7 +81,18 @@ Unter **Einstellungen → Beispieldaten laden** (oder im leeren Tab *Module*) l�
 - Ein Favorit merkt sich nur, welche Module und Gruppen gewählt sind. Änderst du später einen Raum oder eine Uhrzeit, ist das automatisch berücksichtigt. Wird dadurch etwas ungültig (gelöscht, neue Überschneidung), steht beim Favoriten „Veraltet“ mit dem Grund.
 
 ### 6. Studienverlauf (Tab *Studium*)
-Der Überblick über das ganze Studium, unabhängig vom Semester-Planer:
+Der Überblick über das ganze Studium, unabhängig vom Semester-Planer.
+
+**Modulhandbuch einlesen:** Mit **📄 Modulhandbuch einlesen** wählst du das PDF des Modulhandbuchs (M.Sc. Wirtschaftsinformatik, Uni Bamberg). Die App liest die *Übersicht nach Modulgruppen* (Modulgruppen mit ECTS-Spanne, alle Module mit Kürzel, ECTS und Turnus) und aus den Modulbeschreibungen Prüfungsform, Modulverantwortliche/n und Sprache. In einer Vorschau wählst du, welche Modulgruppen übernommen werden (Auflagenmodule sind abgewählt – sie zählen nicht zu den ECTS und betreffen nur, wem sie im Zugangsbescheid auferlegt wurden). Danach:
+- sind die Modulgruppen als Bereiche angelegt bzw. vorhandene mit gleichem Namen aktualisiert,
+- stehen die Module im **Modulkatalog**: Suche (Name, Kürzel, Fach, Dozent, Prüfungsform), Filter nach Bereich und Angebot (WS/SS) und „nur noch nicht eingeplante“. **+ Einplanen** schlägt das erste passende Semester vor (z. B. ein reines SS-Modul im 2. Semester); bei Modulen in mehreren Gruppen wählst du, wo sie angerechnet werden,
+- bekommen schon eingetragene Module ohne Bereich ihre Modulgruppe (Zuordnung über Kürzel oder Namen).
+
+Das PDF wird nur im Browser ausgewertet und nirgends hochgeladen. Das Einlesen ist auf den Aufbau des Bamberger Modulhandbuchs zugeschnitten und funktioniert auch mit späteren Fassungen, solange das Layout gleich bleibt. Neu einlesen ersetzt den Katalog, eingeplante Module bleiben erhalten.
+
+**Studienbeginn und Turnus:** Unter *Studienziel und Bereiche* stellst du ein, ob du im WS oder SS angefangen hast und in welchem Jahr. Die Semester zeigen dann „WS 26/27“, „SS 27“ usw., und Module, die laut Modulhandbuch nur im anderen Semester angeboten werden, sind mit ⚠ markiert und erscheinen als Hinweis.
+
+Außerdem:
 - Unter **Studienziel und Bereiche** trägst du die Gesamt-ECTS (z. B. 120), die Regelstudienzeit und die **Modulbereiche** deiner Prüfungsordnung mit ihrer **ECTS-Spanne** ein (*mindestens* / *höchstens*, z. B. 18–30). Fester Wert wie bei der Masterarbeit: beide gleich. Keine Obergrenze: *höchstens* leer lassen. Alles ist frei konfigurierbar.
 - **+ Modul**: Name, Nummer, ECTS, Bereich, Semester (oder „noch offen“) und Status *geplant*, *belegt* oder *bestanden* mit Note.
 - Oben stehen ECTS bestanden / belegt / geplant / noch ohne Planung und der **Notenschnitt**: nach ECTS gewichtet, nur bestandene Module mit Note, nach der ersten Nachkommastelle abgeschnitten (genauer Wert in Klammern). Prüfe, ob deine Prüfungsordnung das genauso regelt.
@@ -112,7 +123,8 @@ So überträgst du deine Planung z. B. vom Laptop aufs Handy. Das Backup ist auc
 index.html            Grundgerüst mit Tabs; lädt die Skripte in fester Reihenfolge
 css/style.css         Gestaltung (mobil zuerst, helles und dunkles Farbschema)
 js/hilfen.js          kleine Hilfsfunktionen (HTML, Datum, Uhrzeit, Dialoge)
-js/studienverlauf.js  Studienverlauf: Bereiche, Fortschritt, Notenschnitt (vor speicher.js geladen)
+js/studienverlauf.js  Studienverlauf: Bereiche, Fortschritt, Notenschnitt, Katalog (vor speicher.js geladen)
+js/modulhandbuch.js   Modulhandbuch (PDF) einlesen: Zeilen aus pdf.js, Modulgruppen und Module erkennen
 js/speicher.js        Datenmodell, Laden/Speichern im localStorage
 js/termine.js         Termine → konkrete Vorkommen (Datum + Uhrzeit)
 js/pruefungen.js      Prüfungstermine: Überschneidungen, Hinweise, Prüfungsplan
@@ -122,6 +134,7 @@ js/ics.js             Kalender-Export (iCalendar, Zeitzone Europe/Berlin)
 js/druck.js           Druckansicht / PDF
 js/backup.js          JSON-Backup und Backup-Erinnerung
 js/teilen.js          Variante als Link teilen, geteilte Variante ansehen/übernehmen
+vendor/pdfjs/         pdf.js 3.11.174 (Mozilla, Apache-2.0), nur fürs Einlesen des Modulhandbuchs
 js/beispieldaten.js   Beispielsemester
 js/ui-*.js            Oberfläche der einzelnen Tabs
 js/app.js             Start, Tab-Wechsel, zentrale Klick-Verarbeitung

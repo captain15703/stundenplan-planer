@@ -15,9 +15,13 @@
    daten.studienverlauf
    ├─ gesamtEcts       Ziel des Studiengangs, z. B. 120
    ├─ semesterAnzahl   Regelstudienzeit, z. B. 4
-   ├─ bereiche[]       { id, name, minEcts, maxEcts (null = ohne Obergrenze) }
-   └─ module[]         { id, name, nummer, ects, bereichId, semester (0 = offen),
-                         status: 'geplant' | 'belegt' | 'bestanden', note }
+   ├─ studienbeginn    { typ: 'WS' | 'SS', jahr } – für "1. Semester = WS 26/27"
+   ├─ bereiche[]       { id, name, kuerzel, minEcts, maxEcts (null = ohne Obergrenze) }
+   ├─ module[]         { id, name, nummer, ects, bereichId, semester (0 = offen),
+   │                     status: 'geplant' | 'belegt' | 'bestanden', note }
+   └─ katalog          eingelesenes Modulhandbuch (siehe modulhandbuch.js):
+                       { quelle, stand, importiertAm, module[]: { kuerzel, name, ects,
+                         turnus, bereichIds[], fach, seite, verantwortlich, pruefung, sprache } }
    ===================================================================== */
 
 'use strict';
@@ -29,11 +33,63 @@ const VERLAUF_STATUS = {
 };
 
 function leererStudienverlauf() {
-  return { gesamtEcts: 120, semesterAnzahl: 4, bereiche: [], module: [] };
+  return { gesamtEcts: 120, semesterAnzahl: 4, studienbeginn: standardStudienbeginn(), bereiche: [], module: [], katalog: null };
+}
+
+// Das laufende bzw. nächste Wintersemester (ab März: das kommende)
+function standardStudienbeginn(heute = new Date()) {
+  return { typ: 'WS', jahr: heute.getMonth() < 2 ? heute.getFullYear() - 1 : heute.getFullYear() };
+}
+
+// Semestertyp und Bezeichnung von Fachsemester nr (1, 2, …): { typ: 'WS'|'SS', text: 'WS 26/27' }
+function semesterInfo(nr, studienbeginn) {
+  const start = studienbeginn || standardStudienbeginn();
+  // Zählung ab einem Wintersemester: k = 0 → WS jahr, 1 → SS jahr+1, 2 → WS jahr+1, …
+  const basisJahr = start.typ === 'WS' ? start.jahr : start.jahr - 1;
+  const k = (start.typ === 'WS' ? 0 : 1) + nr - 1;
+  const zweistellig = (jahr) => String(jahr % 100).padStart(2, '0');
+  if (k % 2 === 0) {
+    const jahr = basisJahr + k / 2;
+    return { typ: 'WS', text: `WS ${zweistellig(jahr)}/${zweistellig(jahr + 1)}` };
+  }
+  return { typ: 'SS', text: `SS ${zweistellig(basisJahr + (k + 1) / 2)}` };
+}
+
+function normalisiereKatalog(roh) {
+  if (!roh || typeof roh !== 'object' || !Array.isArray(roh.module)) return null;
+  return {
+    quelle: String(roh.quelle || ''),
+    stand: String(roh.stand || ''),
+    importiertAm: String(roh.importiertAm || ''),
+    module: roh.module.map((m) => ({
+      kuerzel: String(m.kuerzel || ''),
+      name: String(m.name || ''),
+      ects: Math.max(0, leseZahl(m.ects, 0)),
+      turnus: String(m.turnus || ''),
+      bereichIds: Array.isArray(m.bereichIds) ? m.bereichIds.map(String) : [],
+      fach: String(m.fach || ''),
+      seite: Number(m.seite) || null,
+      verantwortlich: String(m.verantwortlich || ''),
+      pruefung: String(m.pruefung || ''),
+      sprache: String(m.sprache || ''),
+    })).filter((m) => m.kuerzel && m.name),
+  };
+}
+
+// "WS, jährlich" → { ws, ss }. Unklare Angaben ("alle 4 Semester") → beide false.
+function turnusAngebot(turnus) {
+  const text = String(turnus || '');
+  return { ws: /\bWS\b/.test(text), ss: /\bSS\b/.test(text) };
+}
+
+// Katalogeintrag zu einem Modul des Studienverlaufs (über die Modulnummer)
+function katalogModul(verlauf, nummer) {
+  if (!verlauf.katalog || !nummer) return null;
+  return verlauf.katalog.module.find((m) => m.kuerzel === nummer) || null;
 }
 
 function neuerBereich() {
-  return { id: neueId('bereich'), name: '', minEcts: 0, maxEcts: 30 };
+  return { id: neueId('bereich'), name: '', kuerzel: '', minEcts: 0, maxEcts: 30 };
 }
 
 // Liest einen Bereich – auch das alte Format mit festem "sollEcts"
@@ -66,9 +122,17 @@ function normalisiereStudienverlauf(roh) {
   const quelle = roh && typeof roh === 'object' ? roh : {};
   const semesterAnzahl = Math.min(12, Math.max(1, Math.round(leseZahl(quelle.semesterAnzahl, basis.semesterAnzahl))));
   const bereiche = liste(quelle.bereiche).map(normalisiereBereich);
+  const beginn = quelle.studienbeginn || {};
+  const katalog = normalisiereKatalog(quelle.katalog);
+  if (katalog) katalog.module.forEach((m) => { m.bereichIds = m.bereichIds.filter((id) => bereiche.some((b) => b.id === id)); });
   return {
     gesamtEcts: Math.max(0, leseZahl(quelle.gesamtEcts, basis.gesamtEcts)),
     semesterAnzahl,
+    studienbeginn: {
+      typ: beginn.typ === 'SS' ? 'SS' : 'WS',
+      jahr: Math.round(leseZahl(beginn.jahr, basis.studienbeginn.jahr)),
+    },
+    katalog,
     bereiche,
     module: liste(quelle.module).map((m) => ({
       ...neuesVerlaufsmodul(),
@@ -178,6 +242,18 @@ function werteStudienverlaufAus(verlauf) {
   }
   ergebnis.offen = alle.filter((m) => m.semester === 0);
 
+  // Passt das Semester zum Turnus laut Modulhandbuch? (nur bei eindeutigem WS oder SS)
+  for (const m of alle) {
+    const eintrag = katalogModul(verlauf, m.nummer);
+    if (!eintrag || m.semester === 0 || m.status === 'bestanden') continue;
+    const angebot = turnusAngebot(eintrag.turnus);
+    const info = semesterInfo(m.semester, verlauf.studienbeginn);
+    if (angebot.ws !== angebot.ss && !angebot[info.typ.toLowerCase()]) {
+      ergebnis.hinweise.push(`„${m.name}“ wird laut Modulhandbuch nur im ${angebot.ws ? 'WS' : 'SS'} angeboten, ` +
+        `ist aber im ${m.semester}. Semester (${info.text}) eingeplant.`);
+    }
+  }
+
   // Notenschnitt, gewichtet nach ECTS (nur bestandene Module mit Note)
   let gewichtet = 0;
   let ectsMitNote = 0;
@@ -218,4 +294,87 @@ function uebernimmInStudienverlauf(module, semester, zuordnung = {}) {
     ergebnis.neu.push(modul.name);
   }
   return ergebnis;
+}
+
+/* ---------- Modulhandbuch übernehmen ----------
+   ergebnis: Rückgabe von leseModulhandbuch(); gruppen: gewählte Kürzel
+   der Modulgruppen (z. B. ['A1', 'A2', …]). Vorhandene Bereiche werden
+   über Kürzel oder Namen wiedererkannt und aktualisiert, neue angelegt.
+   Der Katalog wird ersetzt. Module im Studienverlauf ohne Bereich
+   bekommen ihn aus dem Katalog (Zuordnung über Modulnummer oder Namen).
+   Liefert eine Zusammenfassung für die Meldung.
+   ------------------------------------------------------------------ */
+function uebernimmModulhandbuch(ergebnis, gruppen) {
+  const verlauf = daten.studienverlauf;
+  const zusammenfassung = { neueBereiche: 0, geaenderteBereiche: 0, module: 0, zugeordnet: 0 };
+  if (ergebnis.gesamtEcts) verlauf.gesamtEcts = ergebnis.gesamtEcts;
+
+  const idVon = {}; // Kürzel der Modulgruppe → Bereich-ID
+  for (const gruppe of ergebnis.bereiche.filter((g) => gruppen.includes(g.kuerzel))) {
+    const name = gruppe.name.toLowerCase();
+    let bereich = verlauf.bereiche.find((b) => (b.kuerzel && b.kuerzel === gruppe.kuerzel) || b.name.toLowerCase() === name ||
+      (/^[A-Z]\d+$/.test(gruppe.kuerzel) && b.name.startsWith(gruppe.kuerzel + ' ')));
+    // Ohne ECTS-Angabe (Auflagenmodule): zählen nicht zum Studienziel → 0–0
+    const minEcts = gruppe.minEcts === null ? 0 : gruppe.minEcts;
+    const maxEcts = gruppe.minEcts === null ? 0 : gruppe.maxEcts;
+    if (bereich) {
+      if (bereich.minEcts !== minEcts || bereich.maxEcts !== maxEcts || bereich.name !== gruppe.name) zusammenfassung.geaenderteBereiche++;
+      Object.assign(bereich, { name: gruppe.name, kuerzel: gruppe.kuerzel, minEcts, maxEcts });
+    } else {
+      bereich = { ...neuerBereich(), name: gruppe.name, kuerzel: gruppe.kuerzel, minEcts, maxEcts };
+      verlauf.bereiche.push(bereich);
+      zusammenfassung.neueBereiche++;
+    }
+    idVon[gruppe.kuerzel] = bereich.id;
+  }
+
+  verlauf.katalog = {
+    quelle: ergebnis.titel ? 'Modulhandbuch ' + ergebnis.titel : 'Modulhandbuch',
+    stand: ergebnis.stand || '',
+    importiertAm: new Date().toISOString(),
+    module: ergebnis.module
+      .map((m) => ({ ...m, bereichIds: m.bereiche.filter((k) => idVon[k]).map((k) => idVon[k]) }))
+      .filter((m) => m.bereichIds.length)
+      .map(({ bereiche, ...rest }) => rest),
+  };
+  zusammenfassung.module = verlauf.katalog.module.length;
+
+  for (const m of verlauf.module) {
+    const eintrag = katalogModul(verlauf, m.nummer) ||
+      verlauf.katalog.module.find((k) => k.name.toLowerCase() === m.name.trim().toLowerCase());
+    if (!eintrag) continue;
+    if (!m.nummer) m.nummer = eintrag.kuerzel;
+    if (!m.bereichId) {
+      m.bereichId = eintrag.bereichIds[0];
+      zusammenfassung.zugeordnet++;
+    }
+  }
+  return zusammenfassung;
+}
+
+// Holt ein Katalogmodul in den Studienverlauf
+function planeKatalogModul(kuerzel, semester, bereichId) {
+  const verlauf = daten.studienverlauf;
+  const eintrag = katalogModul(verlauf, kuerzel);
+  if (!eintrag) return null;
+  const modul = {
+    ...neuesVerlaufsmodul(),
+    name: eintrag.name,
+    nummer: eintrag.kuerzel,
+    ects: eintrag.ects,
+    bereichId: eintrag.bereichIds.includes(bereichId) ? bereichId : eintrag.bereichIds[0] || '',
+    semester,
+  };
+  verlauf.module.push(modul);
+  return modul;
+}
+
+// Erstes Fachsemester ab "abSemester", in dem das Modul laut Turnus angeboten wird
+function passendesSemester(eintrag, studienbeginn, abSemester = 1) {
+  const angebot = turnusAngebot(eintrag.turnus);
+  if (angebot.ws === angebot.ss) return abSemester;
+  for (let nr = abSemester; nr < abSemester + 2; nr++) {
+    if (angebot[semesterInfo(nr, studienbeginn).typ.toLowerCase()]) return nr;
+  }
+  return abSemester;
 }

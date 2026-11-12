@@ -71,6 +71,14 @@ document.addEventListener('change', (ereignis) => {
   if (aktion) aktion(element.dataset, element, ereignis);
 });
 
+// Live-Eingaben (z. B. Suchfeld im Modulkatalog) mit data-eingabe
+document.addEventListener('input', (ereignis) => {
+  const element = ereignis.target.closest('[data-eingabe]');
+  if (!element) return;
+  const aktion = aktionen[element.dataset.eingabe];
+  if (aktion) aktion(element.dataset, element, ereignis);
+});
+
 // Links wie <a href="#einstellungen"> wechseln den Tab
 window.addEventListener('hashchange', () => zeigeTab(location.hash.slice(1)));
 

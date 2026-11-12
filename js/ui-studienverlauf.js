@@ -1,7 +1,8 @@
 /* =====================================================================
    ui-studienverlauf.js – Tab "Studium": Fortschritt je Modulbereich,
-   Module nach Semester, Notenschnitt sowie Bereiche und Studienziel
-   bearbeiten. Rechenlogik in studienverlauf.js.
+   Module nach Semester, Notenschnitt, Modulkatalog (aus dem eingelesenen
+   Modulhandbuch) sowie Bereiche und Studienziel bearbeiten.
+   Rechenlogik in studienverlauf.js, PDF-Auswertung in modulhandbuch.js.
    ===================================================================== */
 
 'use strict';
@@ -17,14 +18,19 @@ function zeigeStudienverlauf() {
         <h2>Studienverlauf</h2>
         <p class="untertitel">Alle Semester im Überblick: Welche Module wann, wie viele ECTS je Bereich, Notenschnitt.</p>
       </div>
-      <button class="knopf primaer" data-aktion="vmodul-neu" data-semester="1">+ Modul</button>
+      <div class="knopf-reihe">
+        <button class="knopf" data-aktion="mhb-einlesen">📄 Modulhandbuch einlesen</button>
+        <button class="knopf primaer" data-aktion="vmodul-neu" data-semester="1">+ Modul</button>
+      </div>
     </div>`;
 
   if (verlauf.bereiche.length === 0 && verlauf.module.length === 0) {
     html += `
       <div class="leer-zustand">
-        <p>Lege zuerst die Modulbereiche deiner Prüfungsordnung mit ihrer ECTS-Spanne an (z. B. „Bereich A: 18–30 ECTS“,
-          „Masterarbeit: 30 ECTS“), dann die Module mit Semester und Status.</p>
+        <p><strong>Am schnellsten:</strong> Lies das Modulhandbuch (PDF) ein – dann sind alle Modulgruppen mit ihrer
+          ECTS-Spanne angelegt und alle Module stehen im Katalog zur Auswahl.</p>
+        <p><button class="knopf primaer" data-aktion="mhb-einlesen">📄 Modulhandbuch einlesen</button></p>
+        <p>Oder lege die Bereiche selbst an (z. B. „Bereich A: 18–30 ECTS“, „Masterarbeit: 30 ECTS“) und dann die Module.</p>
         <p><button class="knopf" data-aktion="bereich-neu">+ Bereich</button>
           <button class="knopf" data-aktion="vmodul-neu" data-semester="1">+ Modul</button></p>
         <p class="hilfe">Module aus dem Semester-Planer kannst du im Tab <a href="#varianten">Varianten</a> mit
@@ -86,12 +92,20 @@ function zeigeStudienverlauf() {
       <button class="knopf klein" data-aktion="vmodul-neu" data-semester="${semesterNr}">+ Modul</button>
     </section>`;
   html += '<div class="semester-raster">' +
-    a.semester.map((s) => spalte(`${s.nr}. Semester`, s.module, s.nr, s.ueberRegel ? '<p class="klein gedimmt">über der Regelstudienzeit</p>' : '')).join('') +
+    a.semester.map((s) => spalte(`${s.nr}. Semester <span class="semester-typ">${semesterInfo(s.nr, verlauf.studienbeginn).text}</span>`,
+      s.module, s.nr, s.ueberRegel ? '<p class="klein gedimmt">über der Regelstudienzeit</p>' : '')).join('') +
     (a.offen.length ? spalte('Noch ohne Semester', a.offen, 0) : '') +
     '</div>';
 
+  if (verlauf.katalog) html += katalogHtml(verlauf);
   html += verlaufEinstellungenHtml(verlauf);
   bereich.innerHTML = html;
+  if (verlauf.katalog) zeichneKatalogListe();
+}
+
+// "A1" statt "A1 Fachstudium Wirtschaftinformatik", wo es eng ist
+function bereichKurzname(bereich) {
+  return bereich.kuerzel && /^[A-Z]\d+$/.test(bereich.kuerzel) ? bereich.kuerzel : bereich.name;
 }
 
 // Gestapelter Balken: bestanden | belegt | geplant. Der hellere Bereich
@@ -123,13 +137,22 @@ function legendeHtml() {
 }
 
 function verlaufModulHtml(modul) {
-  const bereich = daten.studienverlauf.bereiche.find((b) => b.id === modul.bereichId);
+  const verlauf = daten.studienverlauf;
+  const bereich = verlauf.bereiche.find((b) => b.id === modul.bereichId);
   const note = leseNote(modul.note);
+  const eintrag = katalogModul(verlauf, modul.nummer);
+  let turnus = '';
+  if (eintrag) {
+    const angebot = turnusAngebot(eintrag.turnus);
+    const passt = angebot.ws === angebot.ss || modul.semester === 0 || modul.status === 'bestanden' ||
+      angebot[semesterInfo(modul.semester, verlauf.studienbeginn).typ.toLowerCase()];
+    turnus = passt ? ' · ' + escapeHtml(eintrag.turnus) : ` · <span class="turnus-warnung" title="Wird in diesem Semester nicht angeboten">⚠ ${escapeHtml(eintrag.turnus)}</span>`;
+  }
   return `
     <li class="verlauf-modul status-${modul.status}">
       <button class="verlauf-modul-knopf" data-aktion="vmodul-bearbeiten" data-id="${modul.id}">
         <span class="verlauf-modul-name">${escapeHtml(modul.name)}</span>
-        <span class="klein gedimmt">${formatZahl(modul.ects)} ECTS${bereich ? ' · ' + escapeHtml(bereich.name) : ''}</span>
+        <span class="klein gedimmt">${formatZahl(modul.ects)} ECTS${bereich ? ' · ' + escapeHtml(bereichKurzname(bereich)) : ''}${turnus}</span>
         <span class="abzeichen status">${VERLAUF_STATUS[modul.status]}${note !== null && modul.status === 'bestanden' ? ' · ' + formatZahl(note) : ''}</span>
       </button>
     </li>`;
@@ -139,7 +162,8 @@ function verlaufEinstellungenHtml(verlauf) {
   const bereiche = verlauf.bereiche.length
     ? '<ul class="einfache-liste">' + verlauf.bereiche.map((b) => `
         <li>
-          <span><strong>${escapeHtml(b.name)}</strong> · ${escapeHtml(spanneText(b))}</span>
+          <span><strong>${escapeHtml(b.name)}</strong> · ${escapeHtml(spanneText(b))}${
+            verlauf.katalog ? ` · <span class="gedimmt">${verlauf.katalog.module.filter((m) => m.bereichIds.includes(b.id)).length} Module im Katalog</span>` : ''}</span>
           <span class="zeile-aktionen">
             <button class="knopf-text" data-aktion="bereich-bearbeiten" data-id="${b.id}">Bearbeiten</button>
             <button class="knopf-text gefahr" data-aktion="bereich-loeschen" data-id="${b.id}">Löschen</button>
@@ -156,7 +180,25 @@ function verlaufEinstellungenHtml(verlauf) {
         <label class="feld schmal">Semester (Regelstudienzeit)
           <input type="number" min="1" max="12" step="1" inputmode="numeric" data-aktion="verlauf-zahl" data-feld="semesterAnzahl" value="${escapeHtml(verlauf.semesterAnzahl)}">
         </label>
+        <label class="feld schmal">Studienbeginn
+          <select data-aktion="verlauf-beginn" data-feld="typ">${optionenHtml([['WS', 'Wintersemester'], ['SS', 'Sommersemester']], verlauf.studienbeginn.typ)}</select>
+        </label>
+        <label class="feld schmal">Jahr
+          <input type="number" min="2000" max="2100" step="1" inputmode="numeric" data-aktion="verlauf-beginn" data-feld="jahr" value="${escapeHtml(verlauf.studienbeginn.jahr)}">
+        </label>
       </div>
+      <p class="hilfe">Der Studienbeginn bestimmt, ob ein Semester ein WS oder SS ist – damit prüft die App den Turnus der Module.</p>
+      ${verlauf.katalog ? `
+        <div class="karte-kopf abstand-oben">
+          <h4 class="karte-titel">Modulkatalog</h4>
+          <span class="knopf-reihe">
+            <button class="knopf klein" data-aktion="mhb-einlesen">Neu einlesen</button>
+            <button class="knopf klein gefahr" data-aktion="katalog-entfernen">Entfernen</button>
+          </span>
+        </div>
+        <p class="hilfe">${escapeHtml(verlauf.katalog.quelle)}${verlauf.katalog.stand ? ', Stand ' + escapeHtml(verlauf.katalog.stand) : ''} ·
+          ${verlauf.katalog.module.length} Module · eingelesen am ${escapeHtml(formatZeitpunkt(verlauf.katalog.importiertAm))}.
+          Beim neuen Einlesen bleiben deine eingeplanten Module erhalten.</p>` : ''}
       <div class="karte-kopf abstand-oben">
         <h4 class="karte-titel">Modulbereiche</h4>
         <button class="knopf klein" data-aktion="bereich-neu">+ Bereich</button>
@@ -350,6 +392,248 @@ function oeffneUebernahmeDialog(module) {
       zeigeMeldung([
         ergebnis.neu.length + ' ' + (ergebnis.neu.length === 1 ? 'Modul' : 'Module') + ' ins ' + w.semester + '. Semester übernommen',
         ergebnis.uebersprungen.length ? 'übersprungen (schon vorhanden): ' + ergebnis.uebersprungen.join(', ') : '',
+      ].filter(Boolean).join('\n'));
+      return [];
+    },
+  });
+}
+
+aktionen['verlauf-beginn'] = (werte, element) => {
+  const beginn = daten.studienverlauf.studienbeginn;
+  if (werte.feld === 'typ') beginn.typ = element.value === 'SS' ? 'SS' : 'WS';
+  else beginn.jahr = Math.round(leseZahl(element.value, beginn.jahr));
+  datenGeaendert();
+};
+
+/* ---------- Modulkatalog ----------
+   Die Liste wird bei jeder Eingabe ins Suchfeld neu gezeichnet – nur die
+   Liste, damit das Suchfeld den Fokus behält.
+   ------------------------------------------------------------------ */
+
+const katalogFilter = { suche: '', bereichId: '', angebot: '', nurOffen: false };
+
+function katalogHtml(verlauf) {
+  const bereiche = verlauf.bereiche.filter((b) => verlauf.katalog.module.some((m) => m.bereichIds.includes(b.id)));
+  if (katalogFilter.bereichId && !bereiche.some((b) => b.id === katalogFilter.bereichId)) katalogFilter.bereichId = '';
+  return `
+    <section class="karte katalog">
+      <div class="karte-kopf">
+        <h3 class="karte-titel">Modulkatalog</h3>
+        <span class="gedimmt klein">${escapeHtml(verlauf.katalog.quelle)}${verlauf.katalog.stand ? ' · Stand ' + escapeHtml(verlauf.katalog.stand) : ''}</span>
+      </div>
+      <div class="katalog-filter">
+        <label class="feld katalog-suche">Suche
+          <input type="search" data-eingabe="katalog-suche" value="${escapeHtml(katalogFilter.suche)}" placeholder="Name, Kürzel, Fach, Dozent …">
+        </label>
+        <label class="feld">Bereich
+          <select data-aktion="katalog-filter" data-feld="bereichId">${optionenHtml([['', 'alle Bereiche'], ...bereiche.map((b) => [b.id, b.name])], katalogFilter.bereichId)}</select>
+        </label>
+        <label class="feld schmal">Angebot
+          <select data-aktion="katalog-filter" data-feld="angebot">${optionenHtml([['', 'WS und SS'], ['ws', 'im WS'], ['ss', 'im SS']], katalogFilter.angebot)}</select>
+        </label>
+        <label class="auswahl"><input type="checkbox" data-aktion="katalog-filter" data-feld="nurOffen"${katalogFilter.nurOffen ? ' checked' : ''}> nur noch nicht eingeplante</label>
+      </div>
+      <p class="gedimmt klein" id="katalog-anzahl"></p>
+      <ul class="katalog-liste" id="katalog-liste"></ul>
+    </section>`;
+}
+
+function gefilterteKatalogModule() {
+  const verlauf = daten.studienverlauf;
+  const woerter = katalogFilter.suche.toLowerCase().split(/\s+/).filter(Boolean);
+  return verlauf.katalog.module.filter((m) => {
+    if (katalogFilter.bereichId && !m.bereichIds.includes(katalogFilter.bereichId)) return false;
+    if (katalogFilter.angebot) {
+      const angebot = turnusAngebot(m.turnus);
+      // Unklarer Turnus ("alle 4 Semester") bleibt sichtbar
+      if ((angebot.ws || angebot.ss) && !angebot[katalogFilter.angebot]) return false;
+    }
+    if (katalogFilter.nurOffen && verlauf.module.some((v) => v.nummer === m.kuerzel)) return false;
+    const text = [m.kuerzel, m.name, m.fach, m.verantwortlich, m.pruefung, m.sprache].join(' ').toLowerCase();
+    return woerter.every((w) => text.includes(w));
+  });
+}
+
+function zeichneKatalogListe() {
+  const liste = $('#katalog-liste');
+  if (!liste) return;
+  const verlauf = daten.studienverlauf;
+  const module = gefilterteKatalogModule();
+  $('#katalog-anzahl').textContent = `${module.length} von ${verlauf.katalog.module.length} Modulen`;
+  liste.innerHTML = module.length ? module.map((m) => {
+    const geplant = verlauf.module.find((v) => v.nummer === m.kuerzel);
+    const bereichNamen = m.bereichIds.map((id) => verlauf.bereiche.find((b) => b.id === id)).filter(Boolean).map(bereichKurzname);
+    const details = [m.fach, m.pruefung, m.verantwortlich, m.sprache, m.seite ? 'MHB S. ' + m.seite : ''].filter(Boolean);
+    return `
+      <li class="katalog-eintrag${geplant ? ' eingeplant' : ''}">
+        <div class="katalog-text">
+          <div><strong>${escapeHtml(m.name)}</strong> <span class="gedimmt klein">${escapeHtml(m.kuerzel)}</span></div>
+          <div class="klein">${formatZahl(m.ects)} ECTS · ${escapeHtml(m.turnus || 'Turnus unbekannt')} · ${escapeHtml(bereichNamen.join(', '))}</div>
+          <div class="klein gedimmt">${details.map(escapeHtml).join(' · ')}</div>
+        </div>
+        ${geplant
+          ? `<span class="abzeichen status">${geplant.semester ? geplant.semester + '. Semester' : 'eingeplant'}</span>`
+          : `<button class="knopf klein" data-aktion="katalog-einplanen" data-kuerzel="${escapeHtml(m.kuerzel)}">+ Einplanen</button>`}
+      </li>`;
+  }).join('') : '<li class="gedimmt">Keine Module gefunden.</li>';
+}
+
+aktionen['katalog-suche'] = (werte, element) => {
+  katalogFilter.suche = element.value;
+  zeichneKatalogListe();
+};
+
+aktionen['katalog-filter'] = (werte, element) => {
+  katalogFilter[werte.feld] = element.type === 'checkbox' ? element.checked : element.value;
+  zeichneKatalogListe();
+};
+
+aktionen['katalog-einplanen'] = (werte) => {
+  const verlauf = daten.studienverlauf;
+  const eintrag = katalogModul(verlauf, werte.kuerzel);
+  if (!eintrag) return;
+  const vorschlag = passendesSemester(eintrag, verlauf.studienbeginn, 1);
+  const semester = Array.from({ length: verlauf.semesterAnzahl + 2 }, (_, i) => {
+    const info = semesterInfo(i + 1, verlauf.studienbeginn);
+    const angebot = turnusAngebot(eintrag.turnus);
+    const hinweis = angebot.ws !== angebot.ss && !angebot[info.typ.toLowerCase()] ? ' – nicht angeboten' : '';
+    return [i + 1, `${i + 1}. Semester (${info.text})${hinweis}`];
+  });
+  zeigeDialog({
+    titel: 'Modul einplanen',
+    speichernText: 'Einplanen',
+    inhalt: `
+      <p><strong>${escapeHtml(eintrag.name)}</strong><br>
+        <span class="gedimmt klein">${escapeHtml(eintrag.kuerzel)} · ${formatZahl(eintrag.ects)} ECTS · ${escapeHtml(eintrag.turnus)}</span></p>
+      <label class="feld">Semester
+        <select name="semester">${optionenHtml([[0, 'noch offen'], ...semester], vorschlag)}</select>
+      </label>
+      ${eintrag.bereichIds.length > 1 ? `
+        <label class="feld">Anrechnen in
+          <select name="bereichId">${optionenHtml(eintrag.bereichIds.map((id) => [id, verlauf.bereiche.find((b) => b.id === id)?.name || id]), eintrag.bereichIds[0])}</select>
+        </label>` : ''}`,
+    beimSpeichern(formular) {
+      const w = formularWerte(formular);
+      planeKatalogModul(eintrag.kuerzel, Number(w.semester), w.bereichId || eintrag.bereichIds[0]);
+      datenGeaendert();
+      zeigeMeldung(`„${eintrag.name}“ eingeplant`);
+      return [];
+    },
+  });
+};
+
+aktionen['katalog-entfernen'] = () => {
+  if (!confirm('Modulkatalog entfernen?\n\nBereiche und eingeplante Module bleiben erhalten.')) return;
+  daten.studienverlauf.katalog = null;
+  datenGeaendert();
+};
+
+/* ---------- Modulhandbuch einlesen ---------- */
+
+aktionen['mhb-einlesen'] = () => {
+  const auswahl = document.createElement('input');
+  auswahl.type = 'file';
+  auswahl.accept = '.pdf,application/pdf';
+  auswahl.hidden = true;
+  auswahl.addEventListener('change', () => {
+    if (auswahl.files.length) leseModulhandbuchDatei(auswahl.files[0]);
+    auswahl.remove();
+  });
+  document.body.appendChild(auswahl);
+  auswahl.click();
+};
+
+async function leseModulhandbuchDatei(datei) {
+  const dialog = zeigeDialog({
+    titel: 'Modulhandbuch einlesen',
+    speichernText: 'Bitte warten …',
+    inhalt: `<p>Lese <strong>${escapeHtml(datei.name)}</strong> …</p>
+      <progress class="mhb-fortschritt" max="1" value="0"></progress>
+      <p class="gedimmt klein mhb-status">PDF wird geöffnet</p>
+      <p class="hilfe">Die Datei bleibt auf deinem Gerät, sie wird nirgends hochgeladen.</p>`,
+    beimSpeichern: () => ['Das Einlesen läuft noch.'],
+  });
+  const knopf = $('button[type="submit"]', dialog);
+  knopf.disabled = true;
+  let ergebnis;
+  try {
+    const seiten = await pdfZuZeilen(datei, (seite, gesamt) => {
+      $('.mhb-fortschritt', dialog).value = seite / gesamt;
+      $('.mhb-status', dialog).textContent = `Seite ${seite} von ${gesamt}`;
+    });
+    ergebnis = leseModulhandbuch(seiten);
+  } catch (fehler) {
+    if (!dialog.open) return;
+    $('.dialog-inhalt', dialog).innerHTML = `<p>Die Datei konnte nicht gelesen werden.</p><p class="gedimmt klein">${escapeHtml(fehler.message || String(fehler))}</p>`;
+    knopf.hidden = true;
+    return;
+  }
+  if (!dialog.open) return; // abgebrochen
+  zeigeModulhandbuchVorschau(ergebnis);
+}
+
+function zeigeModulhandbuchVorschau(ergebnis) {
+  const verlauf = daten.studienverlauf;
+  if (ergebnis.bereiche.length === 0 || ergebnis.module.length === 0) {
+    zeigeDialog({
+      titel: 'Modulhandbuch einlesen',
+      speichernText: 'OK',
+      inhalt: `<p>In der Datei wurden keine Modulgruppen und Module gefunden.</p>
+        ${ergebnis.warnungen.length ? `<ul class="klein">${ergebnis.warnungen.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : ''}
+        <p class="hilfe">Das Einlesen ist auf das Modulhandbuch des Masterstudiengangs Wirtschaftsinformatik der Uni Bamberg zugeschnitten.</p>`,
+      beimSpeichern: () => [],
+    });
+    return;
+  }
+  const vorhanden = (gruppe) => verlauf.bereiche.find((b) => (b.kuerzel && b.kuerzel === gruppe.kuerzel) ||
+    b.name.toLowerCase() === gruppe.name.toLowerCase() || b.name.startsWith(gruppe.kuerzel + ' '));
+  const zeilen = ergebnis.bereiche.map((g) => {
+    const auflage = g.minEcts === null;
+    const alt = vorhanden(g);
+    const spanne = auflage ? 'zählt nicht zu den ECTS' : spanneText({ minEcts: g.minEcts, maxEcts: g.maxEcts });
+    const aenderung = alt && !auflage && (alt.minEcts !== g.minEcts || alt.maxEcts !== g.maxEcts)
+      ? ` <span class="klein">(bisher ${escapeHtml(spanneText(alt))})</span>` : alt ? ' <span class="klein gedimmt">(vorhanden)</span>' : '';
+    return `
+      <li>
+        <label class="mhb-gruppe">
+          <input type="checkbox" name="gruppe-${escapeHtml(g.kuerzel)}"${auflage ? '' : ' checked'}>
+          <span>
+            <strong>${escapeHtml(g.name)}</strong>
+            <span class="klein">${escapeHtml(spanne)}${aenderung} · ${g.anzahlModule} ${g.anzahlModule === 1 ? 'Modul' : 'Module'}</span>
+            ${g.hinweise.length ? `<span class="klein gedimmt">${g.hinweise.map(escapeHtml).join(' · ')}</span>` : ''}
+            ${auflage ? '<span class="klein gedimmt">Nur nötig, wenn dir im Zugangsbescheid Auflagen gemacht wurden.</span>' : ''}
+          </span>
+        </label>
+      </li>`;
+  }).join('');
+  const ohneDetails = ergebnis.module.filter((m) => !m.pruefung).length;
+  zeigeDialog({
+    titel: 'Modulhandbuch übernehmen',
+    speichernText: 'Übernehmen',
+    breit: true,
+    inhalt: `
+      <p><strong>${escapeHtml(ergebnis.titel || 'Modulhandbuch')}</strong>${ergebnis.stand ? ` · Stand ${escapeHtml(ergebnis.stand)}` : ''}<br>
+        <span class="gedimmt klein">${ergebnis.module.length} Module · Studienziel ${formatZahl(ergebnis.gesamtEcts || verlauf.gesamtEcts)} ECTS</span></p>
+      <p class="klein"><strong>Welche Modulgruppen übernehmen?</strong></p>
+      <ul class="mhb-gruppen">${zeilen}</ul>
+      ${ergebnis.warnungen.length ? `<details class="hinweis klein"><summary>${ergebnis.warnungen.length} Zeilen nicht erkannt</summary>
+        <ul>${ergebnis.warnungen.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul></details>` : ''}
+      ${ohneDetails ? `<p class="klein gedimmt">Bei ${ohneDetails} Modulen wurde keine Prüfungsform gefunden.</p>` : ''}
+      <p class="hilfe">Die Modulgruppen werden als Bereiche angelegt (vorhandene mit gleichem Namen aktualisiert), die Module
+        landen im <strong>Modulkatalog</strong>, aus dem du sie einplanst. ${verlauf.katalog ? 'Der bisherige Katalog wird ersetzt, ' : ''}
+        Deine eingeplanten Module bleiben erhalten.</p>`,
+    beimSpeichern(formular) {
+      const w = formularWerte(formular);
+      const gruppen = ergebnis.bereiche.map((g) => g.kuerzel).filter((k) => w['gruppe-' + k]);
+      if (gruppen.length === 0) return ['Bitte mindestens eine Modulgruppe auswählen.'];
+      const z = uebernimmModulhandbuch(ergebnis, gruppen);
+      katalogFilter.bereichId = '';
+      datenGeaendert();
+      zeigeMeldung([
+        `${z.module} Module im Katalog`,
+        z.neueBereiche ? `${z.neueBereiche} Bereiche angelegt` : '',
+        z.geaenderteBereiche ? `${z.geaenderteBereiche} Bereiche aktualisiert` : '',
+        z.zugeordnet ? `${z.zugeordnet} eingeplante Module einem Bereich zugeordnet` : '',
       ].filter(Boolean).join('\n'));
       return [];
     },
