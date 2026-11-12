@@ -114,6 +114,9 @@ function leseBackupDatei(datei) {
     if (!confirm(frage)) return;
     daten = neu;
     datenGeaendert();
+    // Die Daten entsprechen genau dem Backup → nichts ungesichert
+    schreibeBackupInfo({ ungesichertSeit: null, spaeterBis: null });
+    aktualisiereBackupErinnerung();
     zeigeMeldung('Backup eingelesen');
   };
   leser.onerror = () => alert('Die Datei konnte nicht gelesen werden.');

@@ -986,16 +986,93 @@ test('Studienverlauf: Notenschnitt gewichtet und abgeschnitten', () => {
   gleich(leseNote('6'), null, 'ungültige Note:');
 });
 
-test('Studienverlauf: Übernahme aus einer Variante überspringt Vorhandenes', () => {
+test('Studienverlauf: Übernahme aus einer Variante setzt Vorhandenes auf „belegt“', () => {
   setzeDaten({ module: [] });
   daten.studienverlauf = normalisiereStudienverlauf({ bereiche: [{ id: 'b1', name: 'A', minEcts: 0, maxEcts: 30 }],
-    module: [{ name: 'Statistik', ects: 6, semester: 1 }] });
-  const module = [{ id: 'm1', name: 'statistik ', ects: 6 }, { id: 'm2', name: 'Ethik', ects: 4, nummer: 'W-15' }];
+    module: [
+      { name: 'Statistik', ects: 6, semester: 3, status: 'geplant' },
+      { name: 'Logik', ects: 6, semester: 1, status: 'bestanden', note: '1,3' },
+    ] });
+  const module = [
+    { id: 'm1', name: 'statistik ', ects: 6 },
+    { id: 'm2', name: 'Ethik', ects: 4, nummer: 'W-15' },
+    { id: 'm3', name: 'Logik', ects: 6 },
+  ];
   const erg = uebernimmInStudienverlauf(module, 2, { m2: 'b1' });
-  gleich(erg, { neu: ['Ethik'], uebersprungen: ['statistik '] });
-  const ethik = daten.studienverlauf.module.find((m) => m.name === 'Ethik');
-  gleich([ethik.semester, ethik.status, ethik.bereichId, ethik.nummer], [2, 'belegt', 'b1', 'W-15']);
+  gleich(erg, { neu: ['Ethik'], aktualisiert: ['Statistik'], unveraendert: ['Logik'] });
+  const v = daten.studienverlauf.module;
+  const ethik = v.find((m) => m.name === 'Ethik');
+  gleich([ethik.semester, ethik.status, ethik.bereichId, ethik.nummer], [2, 'belegt', 'b1', 'W-15'], 'neu:');
+  const statistik = v.find((m) => m.name === 'Statistik');
+  gleich([statistik.semester, statistik.status], [2, 'belegt'], 'geplant → belegt:');
+  const logik = v.find((m) => m.name === 'Logik');
+  gleich([logik.semester, logik.status, logik.note], [1, 'bestanden', '1,3'], 'bestanden bleibt:');
+  gleich(v.length, 3, 'kein Duplikat:');
   gleich(normalisiereDaten({}).studienverlauf.gesamtEcts, 120, 'Standard für alte Daten:');
+});
+
+test('Studienverlauf: gleiche Module über die Nummer erkennen, nicht über den Namen', () => {
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({});
+  uebernimmModulhandbuch(leseModulhandbuch(mhbBeispielSeiten()), ['A1', 'A3', 'A6']);
+  planeKatalogModul('EESYS-ES-M', 2, '');
+  katalogModuleInPlaner(['EESYS-ES-M', 'MAEES8.2']);
+  const planer = daten.module.find((m) => m.nummer === 'EESYS-ES-M');
+  planer.name = 'Energieeffizienz'; // im Planer umbenannt
+  const erg = uebernimmInStudienverlauf([planer], 2, {});
+  gleich([erg.neu.length, erg.aktualisiert], [0, ['Energieeffiziente Systeme']], 'über Nummer erkannt:');
+  gleich(daten.studienverlauf.module.length, 1, 'kein Duplikat:');
+  gleich(daten.studienverlauf.module[0].status, 'belegt');
+  // Gleicher Name, andere Nummer → verschiedene Module
+  wahr(!findeVerlaufsmodul({ name: 'Energieeffiziente Systeme', nummer: 'ANDERS-1' }), 'andere Nummer');
+  // Katalog ↔ Planer: von Hand ohne Nummer angelegtes Modul wird erkannt
+  daten.module.push({ ...neuesModul(), name: 'Masterarbeit', nummer: '' });
+  wahr(findePlanerModul(katalogModul(daten.studienverlauf, 'WI-Thesis-M')), 'Planer ohne Nummer');
+  gleich(katalogModuleInPlaner(['WI-Thesis-M']).neu.length, 0, 'kein Duplikat im Planer:');
+});
+
+test('Studienverlauf: Bereich aus dem Katalog vorbelegen', () => {
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({});
+  uebernimmModulhandbuch(leseModulhandbuch(mhbBeispielSeiten()), ['A1', 'A3', 'A6']);
+  katalogModuleInPlaner(['MAEES8.2']);
+  const a3 = daten.studienverlauf.bereiche.find((b) => b.kuerzel === 'A3');
+  gleich(katalogBereich(daten.module[0]), a3.id, 'Vorschlag:');
+  uebernimmInStudienverlauf(daten.module, 1, {}); // ohne Auswahl im Dialog
+  gleich(daten.studienverlauf.module[0].bereichId, a3.id, 'übernommen:');
+  const a1 = daten.studienverlauf.bereiche.find((b) => b.kuerzel === 'A1');
+  uebernimmInStudienverlauf([{ id: 'x', name: 'Eigenes', ects: 3 }], 1, { x: a1.id });
+  gleich(daten.studienverlauf.module[1].bereichId, a1.id, 'Auswahl im Dialog gewinnt:');
+});
+
+test('Studienverlauf: gelöschter Bereich verschwindet auch aus dem Katalog', () => {
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({});
+  uebernimmModulhandbuch(leseModulhandbuch(mhbBeispielSeiten()), ['A1', 'A3', 'A6']);
+  const v = daten.studienverlauf;
+  const a3 = v.bereiche.find((b) => b.kuerzel === 'A3');
+  loescheBereich(a3.id);
+  wahr(!v.katalog.module.some((m) => m.bereichIds.includes(a3.id)), 'Katalog bereinigt');
+  const modul = planeKatalogModul('MAEES8.2', 2, a3.id);
+  gleich(modul.bereichId, '', 'keine tote Zuordnung:');
+  const a = werteStudienverlaufAus(v);
+  gleich(a.gesamt.summe, a.gesamt.angerechnet, 'alle geplanten ECTS werden gezählt:');
+  wahr(a.bereiche.some((b) => !b.bereich.id && b.summe === 6), 'erscheint unter „Ohne Bereich“');
+});
+
+test('Backup: nach dem Einlesen ist nichts ungesichert', () => {
+  // Die Testseite teilt sich den Speicher mit der App → alten Stand sichern und wiederherstellen
+  let vorher = null;
+  try { vorher = localStorage.getItem(BACKUP_INFO_SCHLUESSEL); } catch (fehler) { return; }
+  try {
+    schreibeBackupInfo({ ungesichertSeit: Date.now() - 30 * MS_PRO_TAG, spaeterBis: null });
+    // gleicher Ablauf wie beim Import: speichern, dann als gesichert markieren
+    schreibeBackupInfo({ ungesichertSeit: null, spaeterBis: null });
+    gleich(backupErinnerungFaellig(leseBackupInfo(), 14, Date.now(), true), false);
+  } finally {
+    if (vorher === null) localStorage.removeItem(BACKUP_INFO_SCHLUESSEL);
+    else localStorage.setItem(BACKUP_INFO_SCHLUESSEL, vorher);
+  }
 });
 
 /* ---------- Modulhandbuch einlesen ---------- */

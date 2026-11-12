@@ -270,16 +270,65 @@ function werteStudienverlaufAus(verlauf) {
   return ergebnis;
 }
 
-// Übernimmt die Module einer Variante in ein Semester.
-// zuordnung: { modulId: bereichId }. Module, die (gleicher Name) schon im
-// Studienverlauf stehen, werden übersprungen. Ergebnis: { neu, uebersprungen }
+// Sucht ein Katalogmodul im Semester-Planer (Nummer, ohne Nummer über den Namen)
+function findePlanerModul(eintrag) {
+  const name = eintrag.name.trim().toLowerCase();
+  return daten.module.find((m) => m.nummer.trim() === eintrag.kuerzel) ||
+    daten.module.find((m) => !m.nummer.trim() && m.name.trim().toLowerCase() === name) || null;
+}
+
+// Löscht einen Bereich: Module verlieren die Zuordnung, der Katalog vergisst ihn
+function loescheBereich(bereichId) {
+  const verlauf = daten.studienverlauf;
+  verlauf.bereiche = verlauf.bereiche.filter((b) => b.id !== bereichId);
+  verlauf.module.forEach((m) => { if (m.bereichId === bereichId) m.bereichId = ''; });
+  if (verlauf.katalog) {
+    verlauf.katalog.module.forEach((m) => { m.bereichIds = m.bereichIds.filter((id) => id !== bereichId); });
+  }
+}
+
+// Sucht ein Modul (aus dem Semester-Planer oder Katalog) im Studienverlauf:
+// zuerst über die Modulnummer, nur ohne Nummer über den Namen.
+function findeVerlaufsmodul(modul) {
+  const verlauf = daten.studienverlauf;
+  const nummer = String(modul.nummer || modul.kuerzel || '').trim();
+  if (nummer) {
+    const treffer = verlauf.module.find((m) => m.nummer.trim() === nummer);
+    if (treffer) return treffer;
+  }
+  const name = String(modul.name || '').trim().toLowerCase();
+  // Über den Namen nur Module ohne (andere) Nummer – sonst wären es verschiedene Module
+  return verlauf.module.find((m) => m.name.trim().toLowerCase() === name && (!nummer || !m.nummer)) || null;
+}
+
+// Bereich, in dem ein Modul laut Modulkatalog angerechnet wird ('' = unbekannt)
+function katalogBereich(modul) {
+  const eintrag = katalogModul(daten.studienverlauf, modul.nummer);
+  if (!eintrag) return '';
+  return eintrag.bereichIds.find((id) => daten.studienverlauf.bereiche.some((b) => b.id === id)) || '';
+}
+
+// Übernimmt die Module einer Variante in ein Semester mit Status "belegt".
+// zuordnung: { modulId: bereichId }. Steht ein Modul schon im Studienverlauf
+// (gleiche Nummer bzw. ohne Nummer gleicher Name), wird es auf "belegt" und
+// das gewählte Semester gesetzt – bestandene Module bleiben unverändert.
+// Ergebnis: { neu, aktualisiert, unveraendert }
 function uebernimmInStudienverlauf(module, semester, zuordnung = {}) {
   const verlauf = daten.studienverlauf;
-  const ergebnis = { neu: [], uebersprungen: [] };
+  const ergebnis = { neu: [], aktualisiert: [], unveraendert: [] };
   for (const modul of module) {
-    const vorhanden = verlauf.module.find((m) => m.name.trim().toLowerCase() === modul.name.trim().toLowerCase());
+    const bereichId = zuordnung[modul.id] || katalogBereich(modul);
+    const vorhanden = findeVerlaufsmodul(modul);
     if (vorhanden) {
-      ergebnis.uebersprungen.push(modul.name);
+      if (vorhanden.status === 'bestanden') {
+        ergebnis.unveraendert.push(vorhanden.name);
+        continue;
+      }
+      vorhanden.status = 'belegt';
+      vorhanden.semester = semester;
+      if (!vorhanden.nummer && modul.nummer) vorhanden.nummer = modul.nummer;
+      if (!vorhanden.bereichId && bereichId) vorhanden.bereichId = bereichId;
+      ergebnis.aktualisiert.push(vorhanden.name);
       continue;
     }
     verlauf.module.push({
@@ -287,7 +336,7 @@ function uebernimmInStudienverlauf(module, semester, zuordnung = {}) {
       name: modul.name,
       nummer: modul.nummer || '',
       ects: modul.ects,
-      bereichId: zuordnung[modul.id] || '',
+      bereichId,
       semester,
       status: 'belegt',
     });
@@ -362,9 +411,12 @@ function planeKatalogModul(kuerzel, semester, bereichId) {
     name: eintrag.name,
     nummer: eintrag.kuerzel,
     ects: eintrag.ects,
-    bereichId: eintrag.bereichIds.includes(bereichId) ? bereichId : eintrag.bereichIds[0] || '',
+    bereichId: '',
     semester,
   };
+  // Nur Bereiche, die es (noch) gibt – sonst würde das Modul nirgends gezählt
+  const gueltig = eintrag.bereichIds.filter((id) => verlauf.bereiche.some((b) => b.id === id));
+  modul.bereichId = gueltig.includes(bereichId) ? bereichId : gueltig[0] || '';
   verlauf.module.push(modul);
   return modul;
 }
@@ -434,7 +486,7 @@ function katalogModuleInPlaner(kuerzelListe) {
   for (const kuerzel of kuerzelListe) {
     const eintrag = katalogModul(daten.studienverlauf, kuerzel);
     if (!eintrag) continue;
-    if (daten.module.some((m) => m.nummer === kuerzel)) {
+    if (findePlanerModul(eintrag)) {
       ergebnis.uebersprungen.push(eintrag.name);
       continue;
     }
