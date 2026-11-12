@@ -1,65 +1,89 @@
 # Anforderungen: Stundenplan-Planer
 
-Web-App zur Planung des Stundenplans im Masterstudium.
+Web-App zum Planen des Studiums: pro Semester einen Stundenplan ohne Überschneidungen finden und über alle Semester den Studienverlauf im Blick behalten. Zugeschnitten auf den M.Sc. Wirtschaftsinformatik an der Uni Bamberg (Modulhandbuch-Import), sonst aber für jeden Studiengang nutzbar.
 
-## Technik
+## Rahmenbedingungen
 
-- Reines HTML, CSS und JavaScript, kein Framework, kein Build-Schritt. Die App läuft direkt über GitHub Pages (und lokal per Doppelklick auf `index.html`).
-- Oberfläche auf Deutsch, funktioniert auf Laptop und Handy.
-- Daten werden im Browser gespeichert (`localStorage`).
-- Code übersichtlich halten und auf Deutsch kommentieren. Auch Variablen- und Funktionsnamen sind deutsch.
+- Reines HTML, CSS und JavaScript, ohne Framework und ohne Build-Schritt. Die App läuft über GitHub Pages und lokal per Doppelklick auf `index.html` (`file://`).
+- Oberfläche auf Deutsch, bedienbar am Laptop und am Handy (ohne waagerechtes Scrollen), helles und dunkles Farbschema.
+- Alle Daten bleiben im Browser (`localStorage`). Nichts wird an einen Server geschickt – auch nicht das Modulhandbuch.
+- Externe Bibliotheken nur, wenn unvermeidbar, und dann im Repository statt von einem CDN (derzeit nur pdf.js für den PDF-Import).
+- Code übersichtlich und auf Deutsch kommentiert; auch Variablen- und Funktionsnamen sind deutsch.
+- Ältere Daten und Backups werden beim Laden automatisch auf den aktuellen Stand gebracht; dabei geht nichts verloren.
 
-## Funktionen
+## 1. Semester
 
-1. **Module** anlegen mit Name, Modulnummer, ECTS, Dozent:in, Prüfungsform, Link und Notizen. Jedes Modul bekommt eine eigene Farbe.
-2. **Lehrveranstaltungen** pro Modul (Vorlesung, Übung, Seminar) mit Wochentag, Uhrzeit, Raum und Zeitraum (Start- und Enddatum).
-3. **Sonderrhythmen:** wöchentlich, 14-tägig (mit Startwoche) und Blockveranstaltungen an einzelnen Daten.
-4. **Alternativtermine:** mehrere Termine einer Veranstaltung (z. B. Übungsgruppe A/B/C) als Auswahlgruppe, von der genau einer belegt wird.
-5. **Geblockte Zeiten** (z. B. Arbeit): ganze Tage oder Zeitfenster, plus einstellbare Pufferzeit in Minuten vor und nach jedem Block.
-6. **Varianten ohne Überschneidungen** erzeugen, auch nicht mit geblockten Zeiten inkl. Puffer. Bei vielen Alternativen effizient rechnen und die Anzahl angezeigter Varianten begrenzen.
-7. **Wochenansicht** jeder Variante als Raster in den Modulfarben.
-8. **Varianten sortieren** nach wählbaren Prioritäten: wenigste Uni-Tage, wenigste Freistunden, spätester Beginn.
-9. **ECTS-Summe** pro Variante mit einstellbarer Zielzahl.
-10. **Module und einzelne Lehrveranstaltungen aktivieren/deaktivieren.** Die Varianten aktualisieren sich danach.
-11. **Favoriten:** Varianten speichern und nebeneinander vergleichen.
-12. **Export** einer Variante als `.ics`-Datei für Google Kalender (Zeitzone Europe/Berlin, Wiederholungen und Zeiträume korrekt).
-13. **Backup:** alle Daten als JSON exportieren und wieder importieren.
+- Name, Vorlesungsbeginn und -ende. Termine ohne eigenes Datum gelten für diesen Zeitraum.
+- **Vorlesungsfreie Zeiten** (Feiertage, Pausen) zentral eintragen. Wöchentliche und 14-tägige Termine entfallen dort – bei der Überschneidungsprüfung, den Kennzahlen und im Kalender-Export (als Ausnahmen). Blocktermine mit festem Datum bleiben bestehen.
 
-### Erweiterungen
+## 2. Module und Termine
 
-14. **Prüfungstermine** pro Modul eintragen (mehrere möglich, z. B. Klausur und Abgabe; Uhrzeit optional; Wiederholungstermine markierbar):
-    - Eine Prüfung hat Vorrang vor Vorlesungen, Arbeit und anderen geblockten Zeiten.
-    - Überschneiden sich die Prüfungen zweier Module wirklich, werden diese Module nicht zusammen belegt.
-    - Prüfungen am selben Tag oder an aufeinanderfolgenden Tagen ergeben einen Hinweis.
-    - Wiederholungstermine werden nicht geprüft.
-15. **Druckansicht / PDF** einer Variante: Wochenraster, Prüfungsplan sowie Module und Termine.
-16. **Pendeltage:** Uni-Tage mit weniger als einer einstellbaren Stundenzahl (Standard 2 h) als Kennzahl, abschaltbares Sortierkriterium (anfangs aus) und Markierung im Wochenraster.
-17. **Backup-Erinnerung:** Hinweis, wenn die erste ungesicherte Änderung älter als X Tage ist (Standard 14, 0 = aus); „Später“ blendet 3 Tage aus.
-18. **Anwesenheit optional** pro Lehrveranstaltung: Überschneidungen mit Terminen und geblockten Zeiten sind erlaubt und erscheinen als Hinweis mit Anzahl; standardmäßig nicht in den Kennzahlen (umschaltbar); im Raster blasser.
-19. **Variante per Link teilen:** komprimiert in der Adresse (`?teilen=`), nur belegte Module mit gewählter Gruppe, Prüfungen, Vorlesungszeitraum und vorlesungsfreie Tage (keine Notizen, geblockten Zeiten, Wünsche, Favoriten). Nur-Lese-Ansicht mit `.ics`-Export und „In meine Planung übernehmen“ (neue Module + Favorit).
-20. **Weiche Wünsche** mit Wochentagen, ganztägig oder Zeitfenster und Gewicht (leicht/mittel/stark): kein Ausschluss, sondern Abzug (Stunden × Gewicht pro normaler Woche) als Sortierkriterium; nicht erfüllte Wünsche werden je Variante genannt.
-21. **Studienverlaufsplan** (frei konfigurierbar): Bereiche mit ECTS-Spanne (Minimum/Maximum, Maximum optional; ECTS über dem Maximum werden nicht aufs Studienziel angerechnet), Module mit Semester, Status (geplant/belegt/bestanden) und Note; Fortschritt je Bereich, ECTS je Semester, nach ECTS gewichteter Notenschnitt (abgeschnitten); Übernahme der Module einer Variante.
-22. **Modulhandbuch einlesen (PDF)**, zugeschnitten auf das Modulhandbuch M.Sc. Wirtschaftsinformatik der Uni Bamberg: Modulgruppen mit ECTS-Spanne als Bereiche, Module (Kürzel, Name, ECTS, Turnus, Fach, Seite, Prüfung, Verantwortliche/r, Sprache) in einen durchsuchbaren **Modulkatalog**; Vorschau mit Auswahl der Modulgruppen (Auflagenmodule standardmäßig ab); Auswertung nur im Browser (pdf.js im Repo, kein Upload). Studienbeginn (WS/SS + Jahr) für Semesterbezeichnungen und Warnung, wenn ein Modul im falschen Semestertyp eingeplant ist.
-23. **Module für den Semester-Planer aus dem Modulhandbuch wählen:** Mehrfachauswahl mit Suche und Bereichsfilter; geplantes Semester (WS/SS) aus Vorlesungsbeginn oder Semestername, Filter auf dort angebotene Module; Vorauswahl der im Studienverlauf für dieses Fachsemester eingeplanten Module; alle werden als Wahlmodule angelegt (keine Pflichtmodule im Studiengang); bereits angelegte Module (gleiche Nummer) werden übersprungen; ⚠-Hinweis an Modulen, die im geplanten Semester laut Modulhandbuch nicht angeboten werden.
+- **Modul:** Name, Modulnummer, ECTS, Dozent:in, Prüfungsform, Link, Notizen und eine eigene Farbe.
+- **Pflicht oder Wahl:** Pflichtmodule sind in jeder Variante enthalten, Wahlmodule darf der Planer weglassen (z. B. um das ECTS-Ziel zu treffen).
+- **Lehrveranstaltungen** pro Modul (Vorlesung, Übung, Seminar …) mit Wochentag, Uhrzeit, Raum und optionalem Zeitraum.
+- **Rhythmus:** wöchentlich, 14-tägig (mit Startwoche) oder Block (einzelne Daten).
+- **Alternativen:** Eine Lehrveranstaltung hat eine oder mehrere Optionen (z. B. Übungsgruppe A/B/C), von denen genau eine belegt wird. Eine Option kann aus mehreren Terminen bestehen (z. B. Di und Do).
+- **Anwesenheit optional** (z. B. bei Aufzeichnung): Solche Lehrveranstaltungen dürfen sich mit anderen Terminen und geblockten Zeiten überschneiden. Das erscheint nur als Hinweis mit Anzahl der betroffenen Termine; im Raster sind sie blasser. In den Kennzahlen zählen sie standardmäßig nicht mit (umschaltbar).
+- **Aktivieren/Deaktivieren** auf Ebene von Modul, Lehrveranstaltung und einzelner Option; die Varianten rechnen sich danach neu.
+- **Aus dem Modulhandbuch wählen** (siehe 8): Mehrfachauswahl mit Suche und Bereichsfilter. Die App erkennt am Vorlesungsbeginn oder Semesternamen, ob ein WS oder SS geplant wird, und zeigt standardmäßig nur dort angebotene Module. Die im Studienverlauf für dieses Fachsemester eingeplanten Module sind vorausgewählt. Alle werden als Wahlmodule angelegt (mit Name, Nummer, ECTS, Prüfungsform, Modulverantwortlicher/m; Turnus und Seite in den Notizen); vorhandene Module mit gleicher Nummer werden übersprungen. Module, die laut Modulhandbuch im geplanten Semester nicht angeboten werden, sind markiert.
 
-## Präzisierungen (abgestimmt vor der Umsetzung)
+## 3. Prüfungen
 
-- **Pflicht- und Wahlmodule:** Jedes Modul ist als Pflicht oder Wahl markiert. Pflichtmodule sind in jeder Variante enthalten, Wahlmodule dürfen fehlen. Die ECTS-Summe kann sich deshalb je Variante unterscheiden. Das ECTS-Ziel wirkt
-  - als Filter („nur Varianten, die das Ziel erreichen“, abschaltbar) und
-  - als zusätzliches Sortierkriterium („ECTS nah am Ziel“).
-- **Vorlesungsfreie Zeiten:** Feiertage und Pausen (z. B. Weihnachten) werden zentral eingetragen. Wiederkehrende Termine entfallen an diesen Tagen: bei der Überschneidungsprüfung, bei den Kennzahlen und im `.ics`-Export (als Ausnahmen). Ausdrücklich eingetragene Blocktermine bleiben bestehen.
-- **Auswahlgruppe:** Eine Lehrveranstaltung hat eine oder mehrere *Optionen* (z. B. Gruppe A, B, C), von denen genau eine belegt wird. Eine Option kann aus mehreren Terminen bestehen (z. B. Di und Do).
-- **Aktivieren/Deaktivieren** ist auf Ebene von Modul, Lehrveranstaltung und einzelner Option möglich.
-- **Überschneidungen** werden kalendergenau geprüft. 14-tägige Termine in wechselnden Wochen und Termine mit getrennten Zeiträumen kollidieren nicht. Direkt aneinander anschließende Termine (z. B. 10–12 und 12–14 Uhr) gelten nicht als Überschneidung.
-- **Kennzahlen** (Ø Uni-Tage pro Woche, Ø Freistunden pro Woche, Ø Beginn pro Uni-Tag) beziehen sich auf eine *normale Vorlesungswoche*: Gemittelt wird über alle Wochen ohne vorlesungsfreie Tage und ohne angebrochene Wochen am Semesteranfang und -ende. Lücken bis 15 Minuten zählen nicht als Freistunde. Blocktermine werden separat als Anzahl Blocktage ausgewiesen; bei gleich vielen Uni-Tagen gewinnt die Variante mit weniger Blocktagen.
-- **Beispieldaten** (fachneutral) lassen sich per Klick laden und zeigen alle Funktionen.
+- Mehrere Prüfungstermine pro Modul (z. B. Klausur und Abgabe), Uhrzeit optional, Wiederholungstermine markierbar.
+- Eine Prüfung hat Vorrang vor Vorlesungen, Arbeit und anderen geblockten Zeiten.
+- Überschneiden sich die Prüfungen zweier Module wirklich, werden diese Module nie zusammen belegt.
+- Prüfungen am selben Tag oder an aufeinanderfolgenden Tagen ergeben einen Hinweis.
+- Wiederholungstermine werden angezeigt, aber nicht geprüft.
 
-## Vorgehen
+## 4. Geblockte Zeiten und Wünsche
 
-1. Diese Anforderungen als `ANFORDERUNGEN.md` ablegen.
-2. Umsetzung in Etappen, nach jeder Etappe ein lauffähiger Commit:
-   1. Datenmodell und Eingabe
-   2. Varianten (Berechnung, Sortierung, Wochenansicht)
-   3. Komfortfunktionen (Favoriten, ICS-Export, Backup)
-3. README um eine kurze Anleitung ergänzen.
-4. Beispieldaten zum Laden per Klick anlegen.
+- **Geblockte Zeiten** (harte Grenze, z. B. Arbeit): wöchentlich oder an bestimmten Tagen bzw. in einem Zeitraum, ganztägig oder als Zeitfenster, mit einstellbarem Puffer davor und danach.
+- **Wünsche** (weiche Vorgabe, z. B. „Freitag frei“, „nicht vor 10 Uhr“): Wochentage, ganzer Tag oder Zeitfenster, Gewicht leicht/mittel/stark (1/2/4). Kein Ausschluss, sondern ein Abzug von Stunden × Gewicht pro normaler Vorlesungswoche, der in die Sortierung eingeht. Pro Variante wird angezeigt, welche Wünsche nicht erfüllt sind. Vorlagen für häufige Wünsche per Klick.
+
+## 5. Varianten
+
+- **Berechnung:** alle Kombinationen ohne Überschneidung – auch nicht mit geblockten Zeiten inklusive Puffer. Geprüft wird kalendergenau: 14-tägige Termine in wechselnden Wochen und Termine in getrennten Zeiträumen kollidieren nicht; direkt aneinander anschließende Termine (10–12 und 12–14 Uhr) sind erlaubt.
+- Effizient auch bei vielen Alternativen (Backtracking mit frühem Abbruch); die Rechenzeit ist begrenzt, die Anzahl angezeigter Varianten einstellbar (5 bis 100).
+- **ECTS-Ziel:** wirkt als Filter („nur Varianten, die das Ziel erreichen“, abschaltbar) und als Sortierkriterium („ECTS nah am Ziel“).
+- **Kennzahlen** pro Variante, bezogen auf eine *normale Vorlesungswoche* (Mittel über alle Wochen ohne vorlesungsfreie Tage und ohne angebrochene Wochen am Semesterrand):
+  - Ø Uni-Tage pro Woche; Blocktermine zählen nicht mit, sondern werden als Anzahl Blocktage ausgewiesen
+  - Ø Freistunden pro Woche (Lücken bis 15 Minuten zählen nicht)
+  - Ø Beginn pro Uni-Tag
+  - Ø Pendeltage pro Woche: Uni-Tage mit weniger Unizeit als eine einstellbare Schwelle (Standard 2 h), im Raster markiert
+  - Wunsch-Abzüge (siehe 4)
+- **Sortierung** nach frei geordneten, einzeln abschaltbaren Kriterien: ECTS nah am Ziel, wenigste Uni-Tage (bei Gleichstand weniger Blocktage), wenigste Freistunden, spätester Beginn, wenigste Pendeltage (anfangs aus), Wünsche am besten erfüllt.
+- **Wochenansicht** als Raster in den Modulfarben: Regelwoche (14-tägige Termine schraffiert, Blocktermine als Liste) oder jede konkrete Kalenderwoche; geblockte Zeiten und Puffer sichtbar; Details per Klick.
+- **Prüfungsplan** je Variante, nach Datum sortiert, mit Hinweisen.
+- Wird keine Variante gefunden, nennt die App den Grund (z. B. zwei feste Pflichttermine, die sich überschneiden) und welche Gruppen und Kombinationen ausgeschlossen wurden.
+
+## 6. Favoriten, Export, Teilen, Druck
+
+- **Favoriten:** Varianten speichern und bis zu drei nebeneinander vergleichen (Kennzahlen-Tabelle mit bestem Wert, Wochenraster). Ein Favorit speichert nur die Auswahl; spätere Änderungen an Räumen oder Zeiten werden übernommen, ungültig gewordene Favoriten als „veraltet“ mit Grund markiert.
+- **Kalender-Export** (`.ics`) für Google Kalender: Zeitzone Europe/Berlin, Serien mit Enddatum, vorlesungsfreie Tage als Ausnahmen, Blocktermine als Einzeltermine, Prüfungen als eigene Termine (ohne Uhrzeit ganztägig).
+- **Teilen per Link:** Die Variante steckt komprimiert in der Adresse (`?teilen=…`) – nur belegte Module mit gewählter Gruppe, ihre Prüfungen, Vorlesungszeitraum und vorlesungsfreie Tage; keine Notizen, geblockten Zeiten, Wünsche oder Favoriten. Der Empfänger sieht eine Nur-Lese-Ansicht mit Kalender-Export und kann die Variante als neue Module plus Favorit übernehmen.
+- **Druckansicht / PDF:** Wochenraster (A4 quer), danach Prüfungsplan sowie Module und Termine.
+- **In den Studienverlauf übernehmen:** die Module einer Variante als „belegt“ in ein Semester eintragen; Module mit gleichem Namen werden übersprungen.
+
+## 7. Studienverlauf
+
+- **Studienziel** (Gesamt-ECTS), Regelstudienzeit und **Studienbeginn** (WS/SS und Jahr). Daraus ergeben sich die Semesterbezeichnungen (z. B. „WS 26/27“, „SS 27“).
+- **Bereiche** (Modulgruppen) mit ECTS-Spanne: Minimum und Maximum, das Maximum ist optional; fester Wert = beide gleich.
+- **Module** mit Nummer, ECTS, Bereich, Semester (oder „offen“), Status *geplant / belegt / bestanden* und Note.
+- **Übersicht:** ECTS bestanden, belegt, geplant und noch ohne Planung; Fortschrittsbalken je Bereich mit hinterlegter Spanne; ECTS je Semester.
+- **Anrechnung:** Pro Bereich zählt höchstens das Maximum zum Studienziel; was darüber liegt, wird ausgewiesen.
+- **Hinweise:** Minimum eines Bereichs fehlt, Bereich über dem Maximum, Spannen passen nicht zum Studienziel, wo bei erfüllten Minima noch Platz ist, und wenn ein Modul in einem Semester liegt, in dem es laut Modulhandbuch nicht angeboten wird.
+- **Notenschnitt:** nach ECTS gewichtet, nur bestandene Module mit Note, nach der ersten Nachkommastelle abgeschnitten (nicht gerundet).
+
+## 8. Modulhandbuch und Modulkatalog
+
+- **PDF-Import** des Modulhandbuchs M.Sc. Wirtschaftsinformatik der Uni Bamberg, ausgewertet nur im Browser. Zugeschnitten auf dessen Aufbau; spätere Fassungen mit gleichem Layout funktionieren ebenso.
+- Gelesen werden aus der *Übersicht nach Modulgruppen* das Studienziel, die Modulgruppen mit ECTS-Spanne und alle Module (Kürzel, Name, ECTS, Turnus, Fach, Seite) und aus den Modulbeschreibungen Prüfungsform, Modulverantwortliche/r und Sprache.
+- **Vorschau** vor der Übernahme mit Auswahl der Modulgruppen; Auflagenmodule sind standardmäßig abgewählt (sie zählen nicht zu den ECTS).
+- Übernahme: Modulgruppen werden zu Bereichen (vorhandene mit gleichem Kürzel oder Namen werden aktualisiert), die Module bilden den **Modulkatalog**, bereits eingetragene Module ohne Bereich werden zugeordnet. Erneutes Einlesen ersetzt den Katalog; eingeplante Module bleiben.
+- **Modulkatalog:** Live-Suche (Name, Kürzel, Fach, Dozent:in, Prüfungsform), Filter nach Bereich, Angebot (WS/SS) und „noch nicht eingeplant“. Beim Einplanen schlägt die App das erste passende Semester vor; bei Modulen in mehreren Gruppen wird gewählt, wo sie angerechnet werden.
+
+## 9. Daten
+
+- **Backup:** alle Daten als JSON exportieren und wieder importieren (mit Rückfrage, ersetzt die vorhandenen Daten).
+- **Backup-Erinnerung:** Hinweis, wenn die erste ungesicherte Änderung älter als eine einstellbare Zahl von Tagen ist (Standard 14, 0 = aus); „Später“ blendet ihn drei Tage aus.
+- **Beispieldaten** (fachneutral) per Klick, die jede Funktion einmal zeigen.
