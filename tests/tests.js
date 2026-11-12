@@ -1138,14 +1138,14 @@ test('Planer: Module aus dem Katalog anlegen', () => {
   gleich([imSemesterAngeboten(kat('EESYS-ES-M'), 'WS'), imSemesterAngeboten(kat('EESYS-ES-M'), 'SS'),
     imSemesterAngeboten(kat('ISM-IOM-M'), 'WS'), imSemesterAngeboten(kat('WI-Thesis-M'), 'WS')], [false, true, null, true], 'Angebot:');
 
-  const e1 = katalogModuleInPlaner(['EESYS-ES-M', 'MAEES8.2'], ['EESYS-ES-M']);
+  const e1 = katalogModuleInPlaner(['EESYS-ES-M', 'MAEES8.2']);
   gleich(e1.neu.length, 2);
   const es = daten.module[0];
   gleich([es.name, es.nummer, es.ects, es.dozent, es.pflicht, es.veranstaltungen.length],
-    ['Energieeffiziente Systeme', 'EESYS-ES-M', 6, 'Prof. Dr. Thorsten Staake', true, 0], 'angelegt:');
+    ['Energieeffiziente Systeme', 'EESYS-ES-M', 6, 'Prof. Dr. Thorsten Staake', false, 0], 'angelegt (Wahl):');
   wahr(es.pruefungsform.startsWith('schriftliche Prüfung (Klausur)'), 'Prüfungsform');
   wahr(es.notizen.includes('Modulhandbuch S. 167'), 'Notiz: ' + es.notizen);
-  gleich(daten.module[1].pflicht, false, 'sonst Wahlmodul:');
+  gleich(daten.module[1].pflicht, false, 'auch Wahlmodul:');
   const e2 = katalogModuleInPlaner(['EESYS-ES-M']);
   gleich([e2.neu.length, e2.uebersprungen], [0, ['Energieeffiziente Systeme']], 'doppelt:');
 });

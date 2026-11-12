@@ -425,10 +425,11 @@ function imSemesterAngeboten(eintrag, typ) {
   return angebot[typ.toLowerCase()];
 }
 
-// Legt aus Katalogmodulen Module im Semester-Planer an. pflichtKuerzel:
-// Kürzel, die als Pflicht angelegt werden (alle anderen als Wahlmodule).
-// Module, deren Nummer schon existiert, werden übersprungen.
-function katalogModuleInPlaner(kuerzelListe, pflichtKuerzel = []) {
+// Legt aus Katalogmodulen Module im Semester-Planer an – immer als
+// Wahlmodule (im Studiengang ist alles frei wählbar; der Planer sucht dann
+// Kombinationen fürs ECTS-Ziel). Module, deren Nummer schon existiert,
+// werden übersprungen.
+function katalogModuleInPlaner(kuerzelListe) {
   const ergebnis = { neu: [], uebersprungen: [] };
   for (const kuerzel of kuerzelListe) {
     const eintrag = katalogModul(daten.studienverlauf, kuerzel);
@@ -444,7 +445,7 @@ function katalogModuleInPlaner(kuerzelListe, pflichtKuerzel = []) {
       ects: eintrag.ects,
       dozent: eintrag.verantwortlich,
       pruefungsform: eintrag.pruefung,
-      pflicht: pflichtKuerzel.includes(kuerzel),
+      pflicht: false,
       notizen: ['Turnus: ' + eintrag.turnus, eintrag.sprache ? 'Sprache: ' + eintrag.sprache : '',
         eintrag.seite ? 'Modulhandbuch S. ' + eintrag.seite : ''].filter(Boolean).join(' · '),
     });

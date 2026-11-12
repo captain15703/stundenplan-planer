@@ -656,11 +656,11 @@ aktionen['planer-katalog'] = () => {
       <p class="gedimmt klein" id="planer-katalog-anzahl"></p>
       <ul class="katalog-liste planer-katalog-liste" id="planer-katalog-liste"></ul>
       <p class="hilfe">Die Module werden mit Name, Kürzel, ECTS, Prüfungsform und Modulverantwortlicher/m angelegt – die Termine
-        (Vorlesung, Übung …) trägst du danach ein. Vorausgewählte Module aus dem Studienverlauf werden als <strong>Pflicht</strong> angelegt,
-        alle anderen als <strong>Wahlmodule</strong> (die App wählt dann passende Kombinationen fürs ECTS-Ziel). Das kannst du später je Modul ändern.</p>`,
+        (Vorlesung, Übung …) trägst du danach ein. Alle werden als <strong>Wahlmodule</strong> angelegt – die App sucht dann passende
+        Kombinationen fürs ECTS-Ziel.</p>`,
     beimSpeichern() {
       if (planerAuswahl.size === 0) return ['Bitte mindestens ein Modul auswählen.'];
-      const ergebnis = katalogModuleInPlaner([...planerAuswahl], vorgemerkt);
+      const ergebnis = katalogModuleInPlaner([...planerAuswahl]);
       datenGeaendert();
       zeigeMeldung([
         `${ergebnis.neu.length} ${ergebnis.neu.length === 1 ? 'Modul' : 'Module'} angelegt – jetzt die Termine eintragen`,
