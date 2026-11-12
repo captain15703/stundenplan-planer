@@ -82,10 +82,11 @@ Unter **Einstellungen → Beispieldaten laden** (oder im leeren Tab *Module*) l�
 
 ### 6. Studienverlauf (Tab *Studium*)
 Der Überblick über das ganze Studium, unabhängig vom Semester-Planer:
-- Unter **Studienziel und Bereiche** trägst du die Gesamt-ECTS (z. B. 120), die Regelstudienzeit und die **Modulbereiche** deiner Prüfungsordnung mit Soll-ECTS ein. Alles ist frei konfigurierbar.
+- Unter **Studienziel und Bereiche** trägst du die Gesamt-ECTS (z. B. 120), die Regelstudienzeit und die **Modulbereiche** deiner Prüfungsordnung mit ihrer **ECTS-Spanne** ein (*mindestens* / *höchstens*, z. B. 18–30). Fester Wert wie bei der Masterarbeit: beide gleich. Keine Obergrenze: *höchstens* leer lassen. Alles ist frei konfigurierbar.
 - **+ Modul**: Name, Nummer, ECTS, Bereich, Semester (oder „noch offen“) und Status *geplant*, *belegt* oder *bestanden* mit Note.
 - Oben stehen ECTS bestanden / belegt / geplant / noch ohne Planung und der **Notenschnitt**: nach ECTS gewichtet, nur bestandene Module mit Note, nach der ersten Nachkommastelle abgeschnitten (genauer Wert in Klammern). Prüfe, ob deine Prüfungsordnung das genauso regelt.
-- Je Bereich zeigt ein Balken den Fortschritt; fehlen ECTS oder ist zu viel geplant, steht das als Hinweis darüber.
+- Je Bereich zeigt ein Balken den Fortschritt, hinterlegt mit der erlaubten Spanne (Striche = Minimum und Maximum). Hinweise erscheinen, wenn das Minimum eines Bereichs fehlt, ein Bereich über dem Maximum liegt oder die Spannen nicht zum Studienziel passen. Sind alle Minima erfüllt, aber das Ziel noch nicht erreicht, steht dort, in welchen Bereichen noch Platz ist.
+- **Anrechnung:** ECTS über dem Maximum eines Bereichs zählen nicht zum Studienziel (übliche Regel – bitte mit deiner Prüfungsordnung abgleichen). Ältere Daten mit festen Soll-ECTS werden als Spanne „x–x“ übernommen.
 - Ein Klick auf ein Modul öffnet es zum Bearbeiten (auch Semester oder Status ändern, löschen).
 
 ### 7. Export für Google Kalender

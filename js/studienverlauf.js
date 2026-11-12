@@ -3,15 +3,19 @@
    (Rechenlogik ohne Oberfläche, siehe ui-studienverlauf.js).
 
    Unabhängig vom Semester-Planer: Du legst selbst Modulbereiche mit
-   Soll-ECTS an (z. B. "Pflichtbereich 30", "Wahlbereich 42",
-   "Masterarbeit 30") und trägst Module mit Semester und Status ein.
-   Daraus berechnet die App den Fortschritt je Bereich, die ECTS pro
-   Semester und den nach ECTS gewichteten Notenschnitt.
+   einer ECTS-Spanne an (z. B. "Bereich A: 18–30 ECTS", "Masterarbeit
+   30–30") und trägst Module mit Semester und Status ein. Daraus
+   berechnet die App den Fortschritt je Bereich, die ECTS pro Semester
+   und den nach ECTS gewichteten Notenschnitt.
+
+   Angerechnet aufs Studienziel wird je Bereich höchstens das Maximum –
+   was darüber hinausgeht, zählt nicht (übliche Regel; bitte mit der
+   eigenen Prüfungsordnung abgleichen).
 
    daten.studienverlauf
    ├─ gesamtEcts       Ziel des Studiengangs, z. B. 120
    ├─ semesterAnzahl   Regelstudienzeit, z. B. 4
-   ├─ bereiche[]       { id, name, sollEcts }
+   ├─ bereiche[]       { id, name, minEcts, maxEcts (null = ohne Obergrenze) }
    └─ module[]         { id, name, nummer, ects, bereichId, semester (0 = offen),
                          status: 'geplant' | 'belegt' | 'bestanden', note }
    ===================================================================== */
@@ -29,7 +33,27 @@ function leererStudienverlauf() {
 }
 
 function neuerBereich() {
-  return { id: neueId('bereich'), name: '', sollEcts: 30 };
+  return { id: neueId('bereich'), name: '', minEcts: 0, maxEcts: 30 };
+}
+
+// Liest einen Bereich – auch das alte Format mit festem "sollEcts"
+function normalisiereBereich(b) {
+  const alt = b.sollEcts !== undefined && b.minEcts === undefined && b.maxEcts === undefined;
+  const minEcts = Math.max(0, leseZahl(alt ? b.sollEcts : b.minEcts, 0));
+  const maxRoh = alt ? b.sollEcts : b.maxEcts;
+  let maxEcts = maxRoh === null || maxRoh === '' || maxRoh === undefined ? null : Math.max(0, leseZahl(maxRoh, 0));
+  if (maxEcts !== null && maxEcts < minEcts) maxEcts = minEcts;
+  const { sollEcts, ...rest } = b;
+  return { ...neuerBereich(), ...rest, minEcts, maxEcts };
+}
+
+// "18–30 ECTS", "30 ECTS", "ab 12 ECTS", "bis 30 ECTS"
+function spanneText(bereich) {
+  const { minEcts: min, maxEcts: max } = bereich;
+  if (max === null) return min ? `ab ${formatZahl(min)} ECTS` : 'ohne Vorgabe';
+  if (min === max) return `${formatZahl(min)} ECTS`;
+  if (!min) return `bis ${formatZahl(max)} ECTS`;
+  return `${formatZahl(min)}–${formatZahl(max)} ECTS`;
 }
 
 function neuesVerlaufsmodul() {
@@ -41,7 +65,7 @@ function normalisiereStudienverlauf(roh) {
   const basis = leererStudienverlauf();
   const quelle = roh && typeof roh === 'object' ? roh : {};
   const semesterAnzahl = Math.min(12, Math.max(1, Math.round(leseZahl(quelle.semesterAnzahl, basis.semesterAnzahl))));
-  const bereiche = liste(quelle.bereiche).map((b) => ({ ...neuerBereich(), ...b, sollEcts: Math.max(0, leseZahl(b.sollEcts, 0)) }));
+  const bereiche = liste(quelle.bereiche).map(normalisiereBereich);
   return {
     gesamtEcts: Math.max(0, leseZahl(quelle.gesamtEcts, basis.gesamtEcts)),
     semesterAnzahl,
@@ -93,22 +117,56 @@ function werteStudienverlaufAus(verlauf) {
   // Bereiche (plus "ohne Bereich", falls Module keinem zugeordnet sind)
   const gruppen = verlauf.bereiche.map((b) => ({ bereich: b, module: alle.filter((m) => m.bereichId === b.id) }));
   const ohne = alle.filter((m) => !m.bereichId);
-  if (ohne.length && verlauf.bereiche.length) gruppen.push({ bereich: { id: '', name: 'Ohne Bereich', sollEcts: 0 }, module: ohne });
+  if (ohne.length && verlauf.bereiche.length) {
+    gruppen.push({ bereich: { id: '', name: 'Ohne Bereich', minEcts: 0, maxEcts: null }, module: ohne });
+  }
+  let angerechnet = 0;
+  let ueberzaehlig = 0;
   for (const { bereich, module } of gruppen) {
     const eintrag = {
       bereich,
-      soll: bereich.sollEcts,
+      min: bereich.minEcts,
+      max: bereich.maxEcts,
       bestanden: nachStatus(module, 'bestanden'),
       belegt: nachStatus(module, 'belegt'),
       geplant: nachStatus(module, 'geplant'),
     };
     eintrag.summe = eintrag.bestanden + eintrag.belegt + eintrag.geplant;
+    eintrag.angerechnet = eintrag.max === null ? eintrag.summe : Math.min(eintrag.summe, eintrag.max);
+    eintrag.zustand = eintrag.summe < eintrag.min ? 'zuwenig' : eintrag.angerechnet < eintrag.summe ? 'zuviel' : 'ok';
+    angerechnet += eintrag.angerechnet;
+    ueberzaehlig += eintrag.summe - eintrag.angerechnet;
     ergebnis.bereiche.push(eintrag);
     if (!bereich.id) continue;
-    if (eintrag.summe < eintrag.soll) {
-      ergebnis.hinweise.push(`„${bereich.name}“: Es fehlen noch ${formatZahl(eintrag.soll - eintrag.summe)} ECTS in der Planung.`);
-    } else if (eintrag.summe > eintrag.soll) {
-      ergebnis.hinweise.push(`„${bereich.name}“: ${formatZahl(eintrag.summe - eintrag.soll)} ECTS mehr geplant als nötig.`);
+    if (eintrag.zustand === 'zuwenig') {
+      ergebnis.hinweise.push(`„${bereich.name}“: Bis zum Minimum fehlen noch ${formatZahl(eintrag.min - eintrag.summe)} ECTS.`);
+    } else if (eintrag.zustand === 'zuviel') {
+      ergebnis.hinweise.push(`„${bereich.name}“: ${formatZahl(eintrag.summe - eintrag.max)} ECTS über dem Maximum – sie zählen nicht zum Studienziel.`);
+    }
+  }
+  // Ohne Bereiche zählt einfach alles
+  ergebnis.gesamt.angerechnet = verlauf.bereiche.length ? angerechnet : ergebnis.gesamt.summe;
+  ergebnis.gesamt.ueberzaehlig = ueberzaehlig;
+
+  // Ist das Ziel mit den Spannen überhaupt erreichbar?
+  if (verlauf.bereiche.length) {
+    const summeMin = verlauf.bereiche.reduce((s, b) => s + b.minEcts, 0);
+    const ohneObergrenze = verlauf.bereiche.some((b) => b.maxEcts === null);
+    const summeMax = verlauf.bereiche.reduce((s, b) => s + (b.maxEcts || 0), 0);
+    if (summeMin > verlauf.gesamtEcts + 0.01) {
+      ergebnis.hinweise.push(`Die Minima der Bereiche ergeben ${formatZahl(summeMin)} ECTS – mehr als das Studienziel von ${formatZahl(verlauf.gesamtEcts)}.`);
+    }
+    if (!ohneObergrenze && summeMax < verlauf.gesamtEcts - 0.01) {
+      ergebnis.hinweise.push(`Die Maxima der Bereiche ergeben nur ${formatZahl(summeMax)} ECTS – das Studienziel von ${formatZahl(verlauf.gesamtEcts)} ist so nicht erreichbar.`);
+    }
+    // Alle Minima erfüllt, aber insgesamt noch zu wenig: Hinweis, wo noch Platz ist
+    const offenGesamt = verlauf.gesamtEcts - ergebnis.gesamt.angerechnet;
+    if (offenGesamt > 0.01 && ergebnis.bereiche.every((b) => !b.bereich.id || b.zustand !== 'zuwenig')) {
+      const platz = ergebnis.bereiche.filter((b) => b.bereich.id && (b.max === null || b.summe < b.max));
+      if (platz.length) {
+        ergebnis.hinweise.push(`Noch ${formatZahl(offenGesamt)} ECTS bis zum Studienziel – Platz ist noch in: ` +
+          platz.map((b) => `„${b.bereich.name}“ (${b.max === null ? 'beliebig' : 'bis ' + formatZahl(b.max - b.summe)})`).join(', ') + '.');
+      }
     }
   }
 
@@ -119,11 +177,6 @@ function werteStudienverlaufAus(verlauf) {
     ergebnis.semester.push({ nr, module, ects: summe(module), ueberRegel: nr > verlauf.semesterAnzahl });
   }
   ergebnis.offen = alle.filter((m) => m.semester === 0);
-
-  const sollBereiche = verlauf.bereiche.reduce((s, b) => s + b.sollEcts, 0);
-  if (verlauf.bereiche.length && Math.abs(sollBereiche - verlauf.gesamtEcts) > 0.01) {
-    ergebnis.hinweise.push(`Die Soll-ECTS der Bereiche ergeben ${formatZahl(sollBereiche)}, das Studienziel ist ${formatZahl(verlauf.gesamtEcts)} ECTS.`);
-  }
 
   // Notenschnitt, gewichtet nach ECTS (nur bestandene Module mit Note)
   let gewichtet = 0;

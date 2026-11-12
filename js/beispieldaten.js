@@ -181,10 +181,10 @@ function beispieldatenErzeugen() {
       gesamtEcts: 120,
       semesterAnzahl: 4,
       bereiche: [
-        { id: 'bsp-bereich-pflicht', name: 'Pflichtbereich', sollEcts: 30 },
-        { id: 'bsp-bereich-wahl', name: 'Wahlpflichtbereich', sollEcts: 48 },
-        { id: 'bsp-bereich-projekt', name: 'Projekt & Seminare', sollEcts: 12 },
-        { id: 'bsp-bereich-arbeit', name: 'Masterarbeit', sollEcts: 30 },
+        { id: 'bsp-bereich-pflicht', name: 'Methoden & Grundlagen', minEcts: 12, maxEcts: 30 },
+        { id: 'bsp-bereich-wahl', name: 'Vertiefung', minEcts: 30, maxEcts: 60 },
+        { id: 'bsp-bereich-projekt', name: 'Projekt & Seminare', minEcts: 6, maxEcts: 18 },
+        { id: 'bsp-bereich-arbeit', name: 'Masterarbeit', minEcts: 30, maxEcts: 30 },
       ],
       module: [
         { id: id('vmodul'), name: 'Forschungsmethoden', nummer: 'M-01', ects: 6, bereichId: 'bsp-bereich-pflicht', semester: 1, status: 'belegt', note: '' },
