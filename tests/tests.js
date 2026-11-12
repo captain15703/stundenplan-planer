@@ -998,6 +998,116 @@ test('Studienverlauf: Übernahme aus einer Variante überspringt Vorhandenes', (
   gleich(normalisiereDaten({}).studienverlauf.gesamtEcts, 120, 'Standard für alte Daten:');
 });
 
+/* ---------- Modulhandbuch einlesen ---------- */
+
+// Nachgebaute Zeilen im Aufbau des Bamberger Modulhandbuchs
+function mhbBeispielSeiten() {
+  return [
+    ['Otto-Friedrich Universität Bamberg', 'Modulhandbuch', 'Masterstudiengang Wirtschaftsinformatik', 'Stand: 16.09.2026'],
+    ['Inhaltsverzeichnis', 'Übersicht nach Modulgruppen',
+      '1) Masterstudium (Bereich) ECTS: 120',
+      'a) A1 Fachstudium Wirtschaftinformatik (Modulgruppe) ECTS: 24 - 54',
+      'aa) Wirtschaftsinformatik (Fächergruppe)',
+      'i) Energieeffiziente Systeme (Fach)',
+      'Das Modul EESYS-BIA-M Business Intelligence & Analytics wird nicht mehr angeboten!',
+      'EESYS-ES-M: Energieeffiziente Systeme (6 ECTS, SS, jährlich)........................ 167',
+      'ii) Informationssystemmanagement (Fach)',
+      'ISM-IOM-M: International Outsourcing Management (6 ECTS, alle 4 Semester)........ 288',
+      '12'],
+    ['Inhaltsverzeichnis',
+      'c) A3 Fachstudium Betriebswirtschaftslehre/Volkswirtschaftslehre (Modulgruppe)',
+      'ECTS: 12 - 30',
+      'aa) Betriebswirtschaftslehre (Fächergruppe)',
+      'ISM-CL-B: Change Leadership: Das Management von (digitalen) Transformationen und ihrer Leadership-',
+      'Implikationen (3 ECTS, SS, jährlich)........................................... 280',
+      'MAEES8.2: Macroeconomics and International Finance 2 (6 ECTS, WS, jährlich)........ 399',
+      'e) A5 Internationalisierung (Modulgruppe) ECTS: 0 - 30',
+      'aa) Gelenktes Auslandsstudium (Wahlpflichtbereich) ECTS: 0 - 30',
+      'f) A6 Masterarbeit (Modulgruppe) ECTS: 30',
+      'WI-Thesis-M: Masterarbeit (30 ECTS, WS, SS).............................. 583',
+      'g) Auflagenmodule (Modulgruppe)',
+      'Hinweis: Auflagenmodule sind durch Studierende nicht frei wählbar, sondern werden durch den',
+      'Prüfungsausschuss im Zugangsbescheid festgelegt.',
+      'aa) Kompetenzbereich Wirtschaftsinformatik (Fächergruppe)',
+      'ISM-IOM-M: International Outsourcing Management (6 ECTS, alle 4 Semester)........ 288'],
+    ['Modul EESYS-ES-M Energieeffiziente Systeme 6 ECTS / 180 h',
+      'Modulverantwortliche/r: Prof. Dr. Thorsten Staake',
+      'Sprache: Deutsch/Englisch',
+      'Prüfung', 'schriftliche Prüfung (Klausur) / Prüfungsdauer: 90 Minuten', 'Beschreibung:'],
+    ['Modul EESYS-ES-M', 'Prüfung', 'Hausarbeit', '168'],
+  ];
+}
+
+test('Modulhandbuch: Modulgruppen mit Spanne und Module', () => {
+  const e = leseModulhandbuch(mhbBeispielSeiten());
+  gleich(e.stand, '16.09.2026', 'Stand:');
+  gleich(e.gesamtEcts, 120, 'gesamt:');
+  gleich(e.bereiche.map((b) => [b.kuerzel, b.minEcts, b.maxEcts]),
+    [['A1', 24, 54], ['A3', 12, 30], ['A5', 0, 30], ['A6', 30, 30], ['Auflagenmodule', null, null]], 'Gruppen:');
+  gleich(e.bereiche[2].hinweise, ['Gelenktes Auslandsstudium: 0–30 ECTS'], 'Unterbereich:');
+  gleich(e.module.map((m) => m.kuerzel), ['EESYS-ES-M', 'ISM-IOM-M', 'ISM-CL-B', 'MAEES8.2', 'WI-Thesis-M'], 'Module:');
+  gleich(e.warnungen, [], 'Warnungen:');
+  const es = e.module[0];
+  gleich([es.name, es.ects, es.turnus, es.fach, es.seite], ['Energieeffiziente Systeme', 6, 'SS, jährlich', 'Energieeffiziente Systeme', 167]);
+  gleich([es.verantwortlich, es.sprache, es.pruefung],
+    ['Prof. Dr. Thorsten Staake', 'Deutsch/Englisch', 'schriftliche Prüfung (Klausur), 90 Minuten + Hausarbeit'], 'Details:');
+  gleich(e.module[1].bereiche, ['A1', 'Auflagenmodule'], 'in zwei Gruppen:');
+  gleich(e.module[2].name, 'Change Leadership: Das Management von (digitalen) Transformationen und ihrer Leadership-Implikationen', 'umbrochen:');
+  gleich(e.module[2].fach, 'Betriebswirtschaftslehre', 'ohne Fach → Fächergruppe:');
+});
+
+test('Modulhandbuch: falsche Datei wird erkannt', () => {
+  const e = leseModulhandbuch([['Irgendein PDF', 'ohne Übersicht']]);
+  gleich(e.module.length, 0);
+  wahr(e.warnungen[0].includes('Übersicht nach Modulgruppen'));
+});
+
+test('Modulhandbuch: Übernahme legt Bereiche und Katalog an', () => {
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({
+    gesamtEcts: 100,
+    bereiche: [{ id: 'alt', name: 'A1 Fachstudium Wirtschaftinformatik', minEcts: 30, maxEcts: 30 }],
+    module: [
+      { name: 'Energieeffiziente Systeme', ects: 6, semester: 1 },
+      { name: 'Eigenes', nummer: 'X-1', ects: 5, semester: 1 },
+    ],
+  });
+  const e = leseModulhandbuch(mhbBeispielSeiten());
+  const z = uebernimmModulhandbuch(e, ['A1', 'A3', 'A6']);
+  const v = daten.studienverlauf;
+  gleich(v.gesamtEcts, 120, 'Ziel:');
+  gleich(v.bereiche.map((b) => [b.kuerzel, b.minEcts, b.maxEcts]), [['A1', 24, 54], ['A3', 12, 30], ['A6', 30, 30]], 'Bereiche:');
+  gleich(v.bereiche[0].id, 'alt', 'vorhandener Bereich bleibt:');
+  gleich([z.neueBereiche, z.geaenderteBereiche, z.module, z.zugeordnet], [2, 1, 5, 1], 'Zusammenfassung:');
+  gleich(v.katalog.module.find((m) => m.kuerzel === 'ISM-IOM-M').bereichIds, ['alt'], 'Auflagen nicht gewählt:');
+  gleich([v.module[0].nummer, v.module[0].bereichId], ['EESYS-ES-M', 'alt'], 'Zuordnung über Namen:');
+  gleich(v.module[1].bereichId, '', 'eigenes Modul unverändert:');
+
+  const m = planeKatalogModul('MAEES8.2', 3, '');
+  gleich([m.name, m.ects, m.semester, m.bereichId === v.bereiche[1].id], ['Macroeconomics and International Finance 2', 6, 3, true]);
+  // Katalog übersteht Speichern/Laden
+  gleich(normalisiereDaten(JSON.parse(JSON.stringify(daten))).studienverlauf.katalog.module.length, 5, 'normalisiert:');
+});
+
+test('Studienverlauf: Semester WS/SS und Turnus-Hinweis', () => {
+  const ws = { typ: 'WS', jahr: 2026 };
+  gleich([1, 2, 3, 4].map((n) => semesterInfo(n, ws).text), ['WS 26/27', 'SS 27', 'WS 27/28', 'SS 28']);
+  gleich([1, 2].map((n) => semesterInfo(n, { typ: 'SS', jahr: 2027 }).text), ['SS 27', 'WS 27/28']);
+  gleich(turnusAngebot('WS, SS'), { ws: true, ss: true });
+  gleich(turnusAngebot('alle 4 Semester'), { ws: false, ss: false });
+
+  setzeDaten({ module: [] });
+  daten.studienverlauf = normalisiereStudienverlauf({ studienbeginn: ws });
+  uebernimmModulhandbuch(leseModulhandbuch(mhbBeispielSeiten()), ['A1', 'A3', 'A6']);
+  const eintrag = katalogModul(daten.studienverlauf, 'EESYS-ES-M'); // nur SS
+  gleich(passendesSemester(eintrag, ws, 1), 2, 'erstes SS:');
+  planeKatalogModul('EESYS-ES-M', 3, '');
+  planeKatalogModul('ISM-IOM-M', 3, ''); // unklarer Turnus → kein Hinweis
+  const hinweise = werteStudienverlaufAus(daten.studienverlauf).hinweise.filter((h) => h.includes('angeboten'));
+  gleich(hinweise.length, 1, 'ein Turnus-Hinweis:');
+  wahr(hinweise[0].includes('nur im SS') && hinweise[0].includes('WS 27/28'), hinweise[0]);
+});
+
 /* ---------- Ergebnis anzeigen ---------- */
 
 function zeigeTestergebnis() {
