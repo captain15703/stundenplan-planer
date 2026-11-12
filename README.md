@@ -32,6 +32,7 @@ Unter **Einstellungen → Beispieldaten laden** (oder im leeren Tab *Module*) l�
 
 ### 2. Module anlegen (Tab *Module*)
 - **+ Modul**: Name, Modulnummer, ECTS, Farbe, Dozent:in, Prüfungsform, Link und Notizen.
+- **📚 Aus Modulhandbuch** (sobald im Tab *Studium* das Modulhandbuch eingelesen ist): Module per Suche auswählen und mit Name, Kürzel, ECTS, Prüfungsform, Modulverantwortlicher/m und Turnus/Seite (in den Notizen) anlegen – danach nur noch die Termine eintragen. Die Auswahl erkennt am Vorlesungsbeginn (bzw. am Semesternamen), welches Semester du planst, zeigt standardmäßig nur dort angebotene Module und wählt die im Studienverlauf für dieses Semester eingeplanten Module schon vor. Vorausgewählte werden als Pflicht, alle anderen als Wahlmodule angelegt. Module, die laut Modulhandbuch im geplanten Semester nicht angeboten werden, sind in der Liste mit ⚠ markiert.
 - **Pflicht** oder **Wahl**:
   - Pflichtmodule sind in jeder Variante enthalten.
   - Wahlmodule darf der Planer weglassen, z. B. um genau dein ECTS-Ziel zu treffen.

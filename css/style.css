@@ -723,3 +723,9 @@ body.geteilt-modus main, body.geteilt-modus .tabs { display: none; }
 /* Lange Namen ohne Leerzeichen ("…Betriebswirtschaftslehre/Volkswirtschaftslehre") umbrechen */
 .bereich-liste, .einfache-liste, .katalog-text, .verlauf-modul-knopf, .hinweis { overflow-wrap: anywhere; }
 .bereich-zeile > span { min-width: 0; }
+
+/* Auswahl aus dem Modulhandbuch im Tab Module */
+.planer-katalog-liste { max-height: 50vh; }
+.planer-katalog-wahl { display: flex; gap: 10px; align-items: flex-start; width: 100%; cursor: pointer; }
+.planer-katalog-wahl input { margin-top: 4px; flex: 0 0 auto; }
+.planer-katalog-wahl .katalog-text { display: grid; gap: 2px; }
